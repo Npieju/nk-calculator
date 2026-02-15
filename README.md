@@ -8,7 +8,7 @@ URL入力からオッズ取得・比較計算までを一気通貫で実行す�
 - サーバーでオッズを取得
 - 比較テーブル（比較1/2/3）を計算
 - ブラウザで結果を表示
-- 必要ならCSV/JSONをダウンロード
+- スマホでも比較しやすく表示
 
 ## Monorepo Layout
 
@@ -16,6 +16,23 @@ URL入力からオッズ取得・比較計算までを一気通貫で実行す�
 - `apps/backend`: APIサーバー（FastAPI）
 - `packages/core`: 取得・計算の共通ドメインロジック
 - `docs`: アーキテクチャ、API契約、デプロイ設計
+
+## Current Features
+
+- 入力は `netkeiba` 出馬表URL（`/race/shutuba.html?race_id=...`）
+- 消し馬は `1〜18` チェックボックスで指定
+- 比較1/2/3 は行内の高値・低値を強調表示
+- 各比較テーブルで列ソート可能
+- 比較3は `馬名A` フィルターあり（全表示も可能）
+- レース情報に `odds_updated_at` / `analyzed_at` を表示
+
+## Data Notes
+
+- APIの比較テーブル列キーは英語
+- フロント表示は日本語ラベルへ変換
+- 順不同券種は順序展開して欠けのない行列化
+	- 馬連/ワイド: 2倍展開
+	- 三連複: 6倍展開
 
 ## Why this split
 
@@ -41,7 +58,14 @@ cd apps/frontend
 /workspace/.venv/bin/python -m http.server 5173
 ```
 
-ブラウザで `http://localhost:5173` を開き、`API Base URL` を `http://localhost:8000` にして実行します。
+ブラウザで `http://localhost:5173` を開いて実行します。
+
+フロントはAPI URLを内部で自動選択します。
+
+- localhost: `http://localhost:8000`
+- それ以外: `https://nk-calculator-api.onrender.com`
+
+そのため画面上に `API Base URL` 入力欄はありません。
 
 詳細は以下:
 
@@ -53,5 +77,3 @@ cd apps/frontend
 
 - Frontend: GitHub Pages（`.github/workflows/deploy-pages.yml`）
 - Backend: Render（`render.yaml`）
-
-事前にGitHub repository variable `API_BASE_URL` を設定してください。

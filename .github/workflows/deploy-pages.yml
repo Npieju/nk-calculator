@@ -30,17 +30,10 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Inject API URL into frontend
-        run: |
-          cp apps/frontend/index.html apps/frontend/index.build.html
-          sed -i "s|value=\"http://localhost:8000\"|value=\"${API_BASE_URL}\"|g" apps/frontend/index.build.html
-        env:
-          API_BASE_URL: ${{ vars.API_BASE_URL }}
-
       - name: Prepare artifact
         run: |
           mkdir -p _site
-          cp apps/frontend/index.build.html _site/index.html
+          cp apps/frontend/index.html _site/index.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
