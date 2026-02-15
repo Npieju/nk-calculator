@@ -5,24 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nk-calculator</title>
     <style>
-      body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.5; }
+      body { font-family: system-ui, sans-serif; margin: 16px; line-height: 1.5; }
       .row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-      input { padding: 8px; min-width: 360px; }
+      label { width: 100%; max-width: 780px; }
+      input { padding: 8px; width: 100%; min-width: 0; box-sizing: border-box; }
       button { padding: 8px 14px; cursor: pointer; }
       .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; }
       .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-      table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+      table { border-collapse: collapse; width: 100%; min-width: 720px; margin-top: 8px; }
       th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; }
-      th { background: #f5f5f5; position: sticky; top: 0; }
+      th { background: #f5f5f5; }
       .muted { color: #666; }
       .ok { color: #0a7a1c; }
       .warn { color: #9a6b00; }
       .err { color: #b00020; }
       .hl-high { background: #fff4cc; font-weight: 700; }
       .hl-low { color: #9ca3af; }
-      .scroll { overflow: auto; max-height: 420px; }
+      .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
+      @media (max-width: 640px) {
+        body { margin: 10px; }
+        .card { padding: 10px; }
+        .card-head h3 { font-size: 16px; margin: 0; }
+        th, td { font-size: 12px; padding: 5px 6px; }
+      }
     </style>
   </head>
   <body>
@@ -95,6 +102,14 @@
         return n.toFixed(1);
       }
 
+      function formatColumnLabel(columnName) {
+        return String(columnName)
+          .replace("合成オッズ", "合成")
+          .replace("(1着流し)", "(1着)")
+          .replace("三連複流し", "三連複")
+          .replace("三連単(1着流し)", "三連単(1着)");
+      }
+
       function getSortedRows(rows, sortBy, sortOrder) {
         const copied = [...rows];
         if (!sortBy) return copied;
@@ -130,9 +145,9 @@
 
         const columns = Object.keys(rows[0]);
         const sortedRows = getSortedRows(rows, state.sortBy, state.sortOrder);
-        const thead = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+        const thead = `<tr>${columns.map((c) => `<th>${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = columns
-          .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(c)}</option>`)
+          .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
 
         const tbody = sortedRows
@@ -276,7 +291,7 @@
           const comparisons = data.comparisons || {};
           tableStates.all = {
             key: "all",
-            title: "全券種比較",
+            title: "全券種比較（合成オッズ）",
             rows: comparisons.all_market_compare || [],
             highlightColumns: [],
             sortBy: (comparisons.all_market_compare && comparisons.all_market_compare[0] && Object.keys(comparisons.all_market_compare[0])[0]) || "",
@@ -285,7 +300,7 @@
           };
           tableStates.c1 = {
             key: "c1",
-            title: "比較1: 単勝 vs 馬単1着流し vs 三連単1着流し",
+            title: "比較1（合成オッズ）: 単勝 / 馬単1着 / 三連単1着",
             rows: comparisons.compare1 || [],
             highlightColumns: ["単勝オッズ", "馬単(1着流し)合成オッズ", "三連単(1着流し)合成オッズ"],
             sortBy: "差異幅",
@@ -294,7 +309,7 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "比較2: 複勝 vs 三連複流し",
+            title: "比較2（合成オッズ）: 複勝 / 三連複流し",
             rows: comparisons.compare2 || [],
             highlightColumns: ["複勝オッズ", "三連複流し合成オッズ"],
             sortBy: "差異幅",
@@ -303,7 +318,7 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "比較3: 馬連 vs 馬単裏表",
+            title: "比較3（合成オッズ）: 馬連 / 馬単裏表",
             rows: comparisons.compare3 || [],
             highlightColumns: ["馬連オッズ", "馬単表裏合成オッズ"],
             sortBy: "差異幅",
