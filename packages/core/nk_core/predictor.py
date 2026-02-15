@@ -93,6 +93,41 @@ def _collect_horse_flow_odds(
     return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
 
 
+def _collect_horse_flow_odds_first_column(
+    frame: pd.DataFrame,
+    horses: list[str],
+    excluded: set[str],
+    combo_size: int,
+) -> dict[str, float | None]:
+    data: dict[str, list[float]] = {h: [] for h in horses}
+    seen_keys: set[tuple[str, ...]] = set()
+    if frame is None or frame.empty or not {"組み合わせ", "オッズ"}.issubset(set(frame.columns)):
+        return {h: None for h in horses}
+
+    for _, row in frame.iterrows():
+        combo = _combo_numbers(row.get("組み合わせ"))
+        if len(combo) != combo_size or any(item in excluded for item in combo):
+            continue
+
+        first = combo[0]
+        if first not in data:
+            continue
+
+        # 順不同券種を順序展開したデータでは、三連複は同じ先頭馬で2重順列が出るため圧縮する。
+        # 例: 1-2-3, 1-3-2 は同一イベントとして1回のみ採用。
+        key = (first, *sorted(combo[1:]))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        odd = _parse_odds_value(row.get("オッズ"))
+        if odd is None or odd <= 0:
+            continue
+        data[first].append(odd)
+
+    return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
+
+
 def _build_pair_compare(
     umaren: pd.DataFrame | None,
     umatan: pd.DataFrame | None,
@@ -204,9 +239,9 @@ def build_comparisons(
     sanrentan_first = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=0)
     sanrentan_second = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=1)
     sanrentan_third = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=2)
-    umaren_flow = _collect_horse_flow_odds(frames.get("馬連", pd.DataFrame()), horse_numbers, excluded, mode="contains")
-    wide_flow = _collect_horse_flow_odds(frames.get("ワイド", pd.DataFrame()), horse_numbers, excluded, mode="contains")
-    sanrenpuku_flow = _collect_horse_flow_odds(frames.get("三連複", pd.DataFrame()), horse_numbers, excluded, mode="contains")
+    umaren_flow = _collect_horse_flow_odds_first_column(frames.get("馬連", pd.DataFrame()), horse_numbers, excluded, combo_size=2)
+    wide_flow = _collect_horse_flow_odds_first_column(frames.get("ワイド", pd.DataFrame()), horse_numbers, excluded, combo_size=2)
+    sanrenpuku_flow = _collect_horse_flow_odds_first_column(frames.get("三連複", pd.DataFrame()), horse_numbers, excluded, combo_size=3)
 
     all_market_compare = master[["馬番", "馬名", "単勝オッズ"]].copy()
     all_market_compare["複勝オッズ"] = all_market_compare["馬番"].astype(str).map(fukusho_map)
