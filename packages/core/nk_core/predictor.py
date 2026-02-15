@@ -61,6 +61,7 @@ def _collect_horse_flow_odds(
     position: int | None = None,
 ) -> dict[str, float | None]:
     data: dict[str, list[float]] = {h: [] for h in horses}
+    seen_unordered: set[tuple[str, ...]] = set()
     if frame is None or frame.empty or not {"組み合わせ", "オッズ"}.issubset(set(frame.columns)):
         return {h: None for h in horses}
 
@@ -68,6 +69,13 @@ def _collect_horse_flow_odds(
         combo = _combo_numbers(row.get("組み合わせ"))
         if not combo or any(item in excluded for item in combo):
             continue
+
+        if mode == "contains":
+            unordered_key = tuple(sorted(combo))
+            if unordered_key in seen_unordered:
+                continue
+            seen_unordered.add(unordered_key)
+
         odd = _parse_odds_value(row.get("オッズ"))
         if odd is None or odd <= 0:
             continue

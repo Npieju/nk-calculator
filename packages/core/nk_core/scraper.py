@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import permutations
 import json
 import re
 from typing import Any
@@ -284,12 +285,24 @@ class NetkeibaScraper:
             odds_value = str(values[0]).strip() if values[0] is not None else ""
             if bet_type == "ワイド" and len(values) >= 2 and values[1] is not None and str(values[1]).strip() not in {"", "0"}:
                 odds_value = f"{str(values[0]).strip()} - {str(values[1]).strip()}"
-            rows.append(
-                {
-                    "組み合わせ": combo,
-                    "オッズ": self._normalize_odds_value(odds_value),
-                }
-            )
+
+            odds_text = self._normalize_odds_value(odds_value)
+            if bet_type in {"枠連", "馬連", "ワイド", "三連複"}:
+                nums = combo.split("-")
+                for ordered in permutations(nums, len(nums)):
+                    rows.append(
+                        {
+                            "組み合わせ": "-".join(ordered),
+                            "オッズ": odds_text,
+                        }
+                    )
+            else:
+                rows.append(
+                    {
+                        "組み合わせ": combo,
+                        "オッズ": odds_text,
+                    }
+                )
 
         rows.sort(key=lambda row: self._combo_sort_key(row.get("組み合わせ", "")))
         return rows
