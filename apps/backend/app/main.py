@@ -20,7 +20,17 @@ from nk_core import analyze_race
 app = FastAPI(title="nk-calculator-api", version="0.1.0")
 
 allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
-allowed_origins = [item.strip() for item in allowed_origins_raw.split(",") if item.strip()]
+allowed_origins: list[str] = []
+for item in allowed_origins_raw.split(","):
+    origin = item.strip()
+    if not origin:
+        continue
+    if origin != "*":
+        origin = origin.rstrip("/")
+    allowed_origins.append(origin)
+    lowered = origin.lower()
+    allowed_origins.append(lowered)
+allowed_origins = list(dict.fromkeys(allowed_origins))
 if not allowed_origins:
     allowed_origins = ["*"]
 
