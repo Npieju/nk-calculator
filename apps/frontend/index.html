@@ -48,6 +48,12 @@
         width: auto;
         max-width: 9em;
       }
+      th.col-horse-display, td.col-horse-display {
+        width: 21ch;
+        min-width: 21ch;
+        max-width: 21ch;
+        white-space: pre;
+      }
       @media (max-width: 640px) {
         body { margin: 10px; }
         .card { padding: 10px; }
@@ -164,7 +170,7 @@
       function getColumnClass(columnName) {
         const c = String(columnName);
         if (c === "horse" || c === "horse_a" || c === "horse_b") {
-          return "col-clip col-text";
+          return "col-clip col-horse-display";
         }
         if (c.includes("horse_no")) {
           return "col-clip col-horse-no";
@@ -236,20 +242,22 @@
       }
 
       function getDisplayValue(row, displayColumn) {
+        const formatHorse = (horseNo, horseName) => {
+          const noText = String(horseNo ?? "").trim();
+          const nameText = String(horseName ?? "").trim();
+          if (!noText && !nameText) return "";
+          const paddedNo = /^\d$/.test(noText) ? ` ${noText}` : noText;
+          return `${paddedNo}.${nameText}`.replace(/^\./, "").replace(/\.$/, "");
+        };
+
         if (displayColumn === "horse") {
-          const no = row?.horse_no ?? "";
-          const name = row?.horse_name ?? "";
-          return `${no}.${name}`.replace(/^\./, "").replace(/\.$/, "");
+          return formatHorse(row?.horse_no, row?.horse_name);
         }
         if (displayColumn === "horse_a") {
-          const no = row?.horse_no_a ?? "";
-          const name = row?.horse_name_a ?? "";
-          return `${no}.${name}`.replace(/^\./, "").replace(/\.$/, "");
+          return formatHorse(row?.horse_no_a, row?.horse_name_a);
         }
         if (displayColumn === "horse_b") {
-          const no = row?.horse_no_b ?? "";
-          const name = row?.horse_name_b ?? "";
-          return `${no}.${name}`.replace(/^\./, "").replace(/\.$/, "");
+          return formatHorse(row?.horse_no_b, row?.horse_name_b);
         }
         return row?.[displayColumn];
       }
