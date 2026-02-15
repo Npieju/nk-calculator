@@ -77,6 +77,17 @@
         return Number.isFinite(n) ? n : null;
       }
 
+      function formatCellValue(columnName, value) {
+        if (!String(columnName).includes("オッズ")) {
+          return value;
+        }
+        const n = toNumber(value);
+        if (n === null) {
+          return value;
+        }
+        return n.toFixed(1);
+      }
+
       function renderTable(title, rows, highlightColumns = []) {
         if (!Array.isArray(rows) || rows.length === 0) {
           return `<div class="card"><h3>${escapeHtml(title)}</h3><p class="muted">データなし</p></div>`;
@@ -98,7 +109,7 @@
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
-                return `<td class="${cls}">${escapeHtml(row[c])}</td>`;
+                return `<td class="${cls}">${escapeHtml(formatCellValue(c, row[c]))}</td>`;
               })
               .join("");
 
