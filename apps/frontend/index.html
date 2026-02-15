@@ -34,6 +34,11 @@
         min-width: 8ch;
         max-width: 8ch;
       }
+      th.col-horse-no, td.col-horse-no {
+        width: 6ch;
+        min-width: 6ch;
+        max-width: 6ch;
+      }
       th.col-text, td.col-text {
         width: 9em;
         min-width: 9em;
@@ -144,7 +149,10 @@
 
       function getColumnClass(columnName) {
         const c = String(columnName);
-        const isNumeric = c.includes("_odds") || c === "spread" || c.includes("horse_no");
+        if (c.includes("horse_no")) {
+          return "col-clip col-horse-no";
+        }
+        const isNumeric = c.includes("_odds") || c === "spread";
         return isNumeric ? "col-clip col-num" : "col-clip col-text";
       }
 
