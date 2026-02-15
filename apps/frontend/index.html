@@ -136,6 +136,13 @@
         return copied;
       }
 
+      function getFilteredRows(rows, filterColumn, filterValue) {
+        if (!filterColumn || !filterValue || filterValue === "__all__") {
+          return [...rows];
+        }
+        return rows.filter((row) => String(row?.[filterColumn] ?? "") === filterValue);
+      }
+
       function buildTableCard(state) {
         const title = state.title;
         const rows = state.rows;
@@ -144,10 +151,18 @@
         }
 
         const columns = Object.keys(rows[0]);
-        const sortedRows = getSortedRows(rows, state.sortBy, state.sortOrder);
+        const filteredRows = getFilteredRows(rows, state.filterColumn, state.filterValue);
+        const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
         const thead = `<tr>${columns.map((c) => `<th>${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = columns
           .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
+          .join("");
+
+        const filterCandidates = state.filterColumn && columns.includes(state.filterColumn)
+          ? Array.from(new Set(rows.map((row) => String(row?.[state.filterColumn] ?? "")).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"))
+          : [];
+        const filterOptions = [`<option value="__all__" ${state.filterValue === "__all__" ? "selected" : ""}>全表示</option>`]
+          .concat(filterCandidates.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
           .join("");
 
         const tbody = sortedRows
@@ -184,6 +199,10 @@
               <span>ソート列</span>
               <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
               <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+              ${state.filterColumn ? `
+              <span>絞り込み</span>
+              <select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>
+              ` : ""}
             </div>
             <div class="scroll">
               <table>
@@ -212,6 +231,12 @@
       window.toggleSortOrder = (key) => {
         if (!tableStates[key]) return;
         tableStates[key].sortOrder = tableStates[key].sortOrder === "asc" ? "desc" : "asc";
+        renderTables();
+      };
+
+      window.changeFilterValue = (key, value) => {
+        if (!tableStates[key]) return;
+        tableStates[key].filterValue = value;
         renderTables();
       };
 
@@ -297,6 +322,8 @@
             sortBy: (comparisons.all_market_compare && comparisons.all_market_compare[0] && Object.keys(comparisons.all_market_compare[0])[0]) || "",
             sortOrder: "asc",
             collapsed: false,
+            filterColumn: "",
+            filterValue: "__all__",
           };
           tableStates.c1 = {
             key: "c1",
@@ -306,6 +333,8 @@
             sortBy: "差異幅",
             sortOrder: "desc",
             collapsed: false,
+            filterColumn: "",
+            filterValue: "__all__",
           };
           tableStates.c2 = {
             key: "c2",
@@ -315,6 +344,8 @@
             sortBy: "差異幅",
             sortOrder: "desc",
             collapsed: false,
+            filterColumn: "",
+            filterValue: "__all__",
           };
           tableStates.c3 = {
             key: "c3",
@@ -324,6 +355,8 @@
             sortBy: "差異幅",
             sortOrder: "desc",
             collapsed: false,
+            filterColumn: "馬名A",
+            filterValue: "__all__",
           };
 
           renderTables();
