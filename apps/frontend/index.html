@@ -12,7 +12,7 @@
       button { padding: 8px 14px; cursor: pointer; }
       .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; }
       .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-      table { border-collapse: collapse; width: max-content; min-width: 0; margin-top: 8px; table-layout: fixed; }
+      table { border-collapse: collapse; width: fit-content; min-width: 0; margin-top: 8px; table-layout: auto; }
       th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; }
       th { background: #f5f5f5; }
       .muted { color: #666; }
@@ -30,18 +30,15 @@
         text-overflow: ellipsis;
       }
       th.col-num, td.col-num {
-        width: 8ch;
-        min-width: 8ch;
+        width: auto;
         max-width: 8ch;
       }
       th.col-horse-no, td.col-horse-no {
-        width: 6ch;
-        min-width: 6ch;
+        width: auto;
         max-width: 6ch;
       }
       th.col-text, td.col-text {
-        width: 9em;
-        min-width: 9em;
+        width: auto;
         max-width: 9em;
       }
       @media (max-width: 640px) {
@@ -101,12 +98,12 @@
         place_odds: "複勝",
         quinella_flow_odds: "馬連",
         wide_flow_odds: "ワイド",
-        exacta_first_flow_odds: "馬単(1着)",
-        exacta_second_flow_odds: "馬単(2着)",
+        exacta_first_flow_odds: "馬単1着",
+        exacta_second_flow_odds: "馬単2着",
         trio_flow_odds: "三連複",
-        trifecta_first_flow_odds: "三連単(1着)",
-        trifecta_second_flow_odds: "三連単(2着)",
-        trifecta_third_flow_odds: "三連単(3着)",
+        trifecta_first_flow_odds: "三単1着",
+        trifecta_second_flow_odds: "三単2着",
+        trifecta_third_flow_odds: "三単3着",
         spread: "差異幅",
         horse_no_a: "馬番A",
         horse_name_a: "馬名A",
