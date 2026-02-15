@@ -74,6 +74,27 @@
       const tableOrder = ["all", "c1", "c2", "c3"];
       const tableStates = {};
       let statusCollapsed = true;
+      const COLUMN_LABELS_JA = {
+        horse_no: "馬番",
+        horse_name: "馬名",
+        win_odds: "単勝",
+        place_odds: "複勝",
+        quinella_flow_odds: "馬連",
+        wide_flow_odds: "ワイド",
+        exacta_first_flow_odds: "馬単(1着)",
+        exacta_second_flow_odds: "馬単(2着)",
+        trio_flow_odds: "三連複",
+        trifecta_first_flow_odds: "三連単(1着)",
+        trifecta_second_flow_odds: "三連単(2着)",
+        trifecta_third_flow_odds: "三連単(3着)",
+        spread: "差異幅",
+        horse_no_a: "馬番A",
+        horse_name_a: "馬名A",
+        horse_no_b: "馬番B",
+        horse_name_b: "馬名B",
+        quinella_odds: "馬連",
+        exacta_both_flow_odds: "馬単裏表",
+      };
 
       function escapeHtml(text) {
         return String(text ?? "")
@@ -92,7 +113,7 @@
       }
 
       function formatCellValue(columnName, value) {
-        if (String(columnName).includes("馬番")) {
+        if (String(columnName).includes("horse_no")) {
           return value;
         }
         const n = toNumber(value);
@@ -103,11 +124,7 @@
       }
 
       function formatColumnLabel(columnName) {
-        return String(columnName)
-          .replace("合成オッズ", "合成")
-          .replace("(1着流し)", "(1着)")
-          .replace("三連複流し", "三連複")
-          .replace("三連単(1着流し)", "三連単(1着)");
+        return COLUMN_LABELS_JA[columnName] || String(columnName);
       }
 
       function getSortedRows(rows, sortBy, sortOrder) {
@@ -316,7 +333,7 @@
           const comparisons = data.comparisons || {};
           tableStates.all = {
             key: "all",
-            title: "全券種比較（合成オッズ）",
+            title: "全券種比較（全流し合成オッズ）",
             rows: comparisons.all_market_compare || [],
             highlightColumns: [],
             sortBy: (comparisons.all_market_compare && comparisons.all_market_compare[0] && Object.keys(comparisons.all_market_compare[0])[0]) || "",
@@ -327,10 +344,10 @@
           };
           tableStates.c1 = {
             key: "c1",
-            title: "比較1（合成オッズ）: 単勝 / 馬単1着 / 三連単1着",
+            title: "比較1（全流し合成オッズ）: 単勝 / 馬単1着 / 三連単1着",
             rows: comparisons.compare1 || [],
-            highlightColumns: ["単勝オッズ", "馬単(1着流し)合成オッズ", "三連単(1着流し)合成オッズ"],
-            sortBy: "差異幅",
+            highlightColumns: ["win_odds", "exacta_first_flow_odds", "trifecta_first_flow_odds"],
+            sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
             filterColumn: "",
@@ -338,10 +355,10 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "比較2（合成オッズ）: 複勝 / 三連複流し",
+            title: "比較2（全流し合成オッズ）: 複勝 / 三連複",
             rows: comparisons.compare2 || [],
-            highlightColumns: ["複勝オッズ", "三連複流し合成オッズ"],
-            sortBy: "差異幅",
+            highlightColumns: ["place_odds", "trio_flow_odds"],
+            sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
             filterColumn: "",
@@ -349,13 +366,13 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "比較3（合成オッズ）: 馬連 / 馬単裏表",
+            title: "比較3（全流し合成オッズ）: 馬連 / 馬単裏表",
             rows: comparisons.compare3 || [],
-            highlightColumns: ["馬連オッズ", "馬単表裏合成オッズ"],
-            sortBy: "差異幅",
+            highlightColumns: ["quinella_odds", "exacta_both_flow_odds"],
+            sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
-            filterColumn: "馬名A",
+            filterColumn: "horse_name_a",
             filterValue: "__all__",
           };
 
