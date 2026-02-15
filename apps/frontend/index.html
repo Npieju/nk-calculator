@@ -20,6 +20,8 @@
       .hl-high { background: #fff4cc; font-weight: 700; }
       .hl-low { color: #9ca3af; }
       .scroll { overflow: auto; max-height: 420px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+      select { padding: 6px; }
     </style>
   </head>
   <body>
@@ -60,6 +62,8 @@
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
       const tablesBox = document.getElementById("tables");
+      const tableOrder = ["all", "c1", "c2", "c3"];
+      const tableStates = {};
 
       function escapeHtml(text) {
         return String(text ?? "")
@@ -78,7 +82,7 @@
       }
 
       function formatCellValue(columnName, value) {
-        if (!String(columnName).includes("オッズ")) {
+        if (String(columnName).includes("馬番")) {
           return value;
         }
         const n = toNumber(value);
@@ -88,15 +92,49 @@
         return n.toFixed(1);
       }
 
-      function renderTable(title, rows, highlightColumns = []) {
+      function getSortedRows(rows, sortBy, sortOrder) {
+        const copied = [...rows];
+        if (!sortBy) return copied;
+
+        copied.sort((a, b) => {
+          const av = a?.[sortBy];
+          const bv = b?.[sortBy];
+          const an = toNumber(av);
+          const bn = toNumber(bv);
+
+          let result = 0;
+          if (an !== null && bn !== null) {
+            result = an - bn;
+          } else if (an !== null) {
+            result = -1;
+          } else if (bn !== null) {
+            result = 1;
+          } else {
+            result = String(av ?? "").localeCompare(String(bv ?? ""), "ja");
+          }
+
+          return sortOrder === "asc" ? result : -result;
+        });
+        return copied;
+      }
+
+      function buildTableCard(state) {
+        const title = state.title;
+        const rows = state.rows;
         if (!Array.isArray(rows) || rows.length === 0) {
           return `<div class="card"><h3>${escapeHtml(title)}</h3><p class="muted">データなし</p></div>`;
         }
+
         const columns = Object.keys(rows[0]);
+        const sortedRows = getSortedRows(rows, state.sortBy, state.sortOrder);
         const thead = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
-        const tbody = rows
+        const options = columns
+          .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(c)}</option>`)
+          .join("");
+
+        const tbody = sortedRows
           .map((row) => {
-            const numeric = highlightColumns
+            const numeric = state.highlightColumns
               .filter((col) => columns.includes(col))
               .map((col) => ({ col, value: toNumber(row[col]) }))
               .filter((item) => item.value !== null);
@@ -116,9 +154,15 @@
             return `<tr>${tds}</tr>`;
           })
           .join("");
+
         return `
           <div class="card">
             <h3>${escapeHtml(title)}</h3>
+            <div class="toolbar">
+              <span>ソート列</span>
+              <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
+              <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+            </div>
             <div class="scroll">
               <table>
                 <thead>${thead}</thead>
@@ -127,6 +171,26 @@
             </div>
           </div>`;
       }
+
+      function renderTables() {
+        tablesBox.innerHTML = tableOrder
+          .map((key) => tableStates[key])
+          .filter(Boolean)
+          .map((state) => buildTableCard(state))
+          .join("");
+      }
+
+      window.changeSortColumn = (key, column) => {
+        if (!tableStates[key]) return;
+        tableStates[key].sortBy = column;
+        renderTables();
+      };
+
+      window.toggleSortOrder = (key) => {
+        if (!tableStates[key]) return;
+        tableStates[key].sortOrder = tableStates[key].sortOrder === "asc" ? "desc" : "asc";
+        renderTables();
+      };
 
       function renderOddsStatus(statusMap) {
         const rows = Object.entries(statusMap || {}).map(([k, v]) => {
@@ -181,22 +245,40 @@
           statusBox.innerHTML = renderOddsStatus(data.odds_status || {});
 
           const comparisons = data.comparisons || {};
-          tablesBox.innerHTML = [
-            renderTable("全券種比較", comparisons.all_market_compare || []),
-            renderTable("比較1: 単勝 vs 馬単1着流し vs 三連単1着流し", comparisons.compare1 || [], [
-              "単勝オッズ",
-              "馬単(1着流し)合成オッズ",
-              "三連単(1着流し)合成オッズ",
-            ]),
-            renderTable("比較2: 複勝 vs 三連複流し", comparisons.compare2 || [], [
-              "複勝オッズ",
-              "三連複流し合成オッズ",
-            ]),
-            renderTable("比較3: 馬連 vs 馬単裏表", comparisons.compare3 || [], [
-              "馬連オッズ",
-              "馬単表裏合成オッズ",
-            ]),
-          ].join("");
+          tableStates.all = {
+            key: "all",
+            title: "全券種比較",
+            rows: comparisons.all_market_compare || [],
+            highlightColumns: [],
+            sortBy: (comparisons.all_market_compare && comparisons.all_market_compare[0] && Object.keys(comparisons.all_market_compare[0])[0]) || "",
+            sortOrder: "asc",
+          };
+          tableStates.c1 = {
+            key: "c1",
+            title: "比較1: 単勝 vs 馬単1着流し vs 三連単1着流し",
+            rows: comparisons.compare1 || [],
+            highlightColumns: ["単勝オッズ", "馬単(1着流し)合成オッズ", "三連単(1着流し)合成オッズ"],
+            sortBy: "差異幅",
+            sortOrder: "desc",
+          };
+          tableStates.c2 = {
+            key: "c2",
+            title: "比較2: 複勝 vs 三連複流し",
+            rows: comparisons.compare2 || [],
+            highlightColumns: ["複勝オッズ", "三連複流し合成オッズ"],
+            sortBy: "差異幅",
+            sortOrder: "desc",
+          };
+          tableStates.c3 = {
+            key: "c3",
+            title: "比較3: 馬連 vs 馬単裏表",
+            rows: comparisons.compare3 || [],
+            highlightColumns: ["馬連オッズ", "馬単表裏合成オッズ"],
+            sortBy: "差異幅",
+            sortOrder: "desc",
+          };
+
+          renderTables();
         } catch (err) {
           metaBox.innerHTML = `<p class="err">${escapeHtml(err.message || err)}</p>`;
         }
