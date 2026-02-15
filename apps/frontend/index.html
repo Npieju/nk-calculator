@@ -24,6 +24,14 @@
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
+      th.col-horse-name, td.col-horse-name {
+        width: 9em;
+        min-width: 9em;
+        max-width: 9em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       @media (max-width: 640px) {
         body { margin: 10px; }
         .card { padding: 10px; }
@@ -49,7 +57,7 @@
     </div>
     <div class="row">
       <label>
-        消し馬（馬番カンマ区切り）
+        消し馬（馬番カンマ区切り）オッズ計算から除外します
         <br />
         <input id="excluded" value="" />
       </label>
@@ -170,7 +178,7 @@
         const columns = Object.keys(rows[0]);
         const filteredRows = getFilteredRows(rows, state.filterColumn, state.filterValue);
         const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
-        const thead = `<tr>${columns.map((c) => `<th>${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+        const thead = `<tr>${columns.map((c) => `<th class="${String(c).includes("horse_name") ? "col-horse-name" : ""}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = columns
           .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
@@ -197,6 +205,7 @@
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
+                if (String(c).includes("horse_name")) cls = `${cls} col-horse-name`.trim();
                 return `<td class="${cls}">${escapeHtml(formatCellValue(c, row[c]))}</td>`;
               })
               .join("");
@@ -366,7 +375,7 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "比較3（全流し合成オッズ）: 馬連 / 馬単裏表",
+            title: "比較3（合成オッズ）: 馬連 / 馬単裏表",
             rows: comparisons.compare3 || [],
             highlightColumns: ["quinella_odds", "exacta_both_flow_odds"],
             sortBy: "spread",
