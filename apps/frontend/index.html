@@ -24,7 +24,7 @@
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
-      th.col-horse-name, td.col-horse-name {
+      th.col-clip, td.col-clip {
         width: 9em;
         min-width: 9em;
         max-width: 9em;
@@ -178,7 +178,7 @@
         const columns = Object.keys(rows[0]);
         const filteredRows = getFilteredRows(rows, state.filterColumn, state.filterValue);
         const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
-        const thead = `<tr>${columns.map((c) => `<th class="${String(c).includes("horse_name") ? "col-horse-name" : ""}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+        const thead = `<tr>${columns.map((c) => `<th class="col-clip">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = columns
           .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
@@ -205,7 +205,7 @@
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
-                if (String(c).includes("horse_name")) cls = `${cls} col-horse-name`.trim();
+                cls = `${cls} col-clip`.trim();
                 return `<td class="${cls}">${escapeHtml(formatCellValue(c, row[c]))}</td>`;
               })
               .join("");
