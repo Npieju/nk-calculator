@@ -100,8 +100,11 @@
       const tableStates = {};
       let statusCollapsed = true;
       const COLUMN_LABELS_JA = {
+        horse: "馬",
         horse_no: "馬番",
         horse_name: "馬名",
+        horse_a: "馬A",
+        horse_b: "馬B",
         win_odds: "単勝",
         place_odds: "複勝",
         quinella_flow_odds: "馬連",
@@ -140,7 +143,8 @@
       }
 
       function formatCellValue(columnName, value) {
-        if (String(columnName).includes("horse_no")) {
+        const c = String(columnName);
+        if (c.includes("horse_no") || c === "horse" || c === "horse_a" || c === "horse_b") {
           return value;
         }
         const n = toNumber(value);
@@ -159,6 +163,9 @@
 
       function getColumnClass(columnName) {
         const c = String(columnName);
+        if (c === "horse" || c === "horse_a" || c === "horse_b") {
+          return "col-clip col-text";
+        }
         if (c.includes("horse_no")) {
           return "col-clip col-horse-no";
         }
@@ -199,6 +206,63 @@
         return rows.filter((row) => String(row?.[filterColumn] ?? "") === filterValue);
       }
 
+      function getDisplayColumns(columns) {
+        const out = [];
+        for (const c of columns) {
+          if (c === "horse_no" && columns.includes("horse_name")) {
+            out.push("horse");
+            continue;
+          }
+          if (c === "horse_name" && columns.includes("horse_no")) {
+            continue;
+          }
+          if (c === "horse_no_a" && columns.includes("horse_name_a")) {
+            out.push("horse_a");
+            continue;
+          }
+          if (c === "horse_name_a" && columns.includes("horse_no_a")) {
+            continue;
+          }
+          if (c === "horse_no_b" && columns.includes("horse_name_b")) {
+            out.push("horse_b");
+            continue;
+          }
+          if (c === "horse_name_b" && columns.includes("horse_no_b")) {
+            continue;
+          }
+          out.push(c);
+        }
+        return out;
+      }
+
+      function getDisplayValue(row, displayColumn) {
+        if (displayColumn === "horse") {
+          const no = row?.horse_no ?? "";
+          const name = row?.horse_name ?? "";
+          return `${no}.${name}`.replace(/^\./, "").replace(/\.$/, "");
+        }
+        if (displayColumn === "horse_a") {
+          const no = row?.horse_no_a ?? "";
+          const name = row?.horse_name_a ?? "";
+          return `${no}.${name}`.replace(/^\./, "").replace(/\.$/, "");
+        }
+        if (displayColumn === "horse_b") {
+          const no = row?.horse_no_b ?? "";
+          const name = row?.horse_name_b ?? "";
+          return `${no}.${name}`.replace(/^\./, "").replace(/\.$/, "");
+        }
+        return row?.[displayColumn];
+      }
+
+      function getSortableColumns(columns) {
+        return columns.filter((c) => {
+          if (c === "horse_name" && columns.includes("horse_no")) return false;
+          if (c === "horse_name_a" && columns.includes("horse_no_a")) return false;
+          if (c === "horse_name_b" && columns.includes("horse_no_b")) return false;
+          return true;
+        });
+      }
+
       function buildTableCard(state) {
         const title = state.title;
         const rows = state.rows;
@@ -207,10 +271,12 @@
         }
 
         const columns = Object.keys(rows[0]);
+        const displayColumns = getDisplayColumns(columns);
+        const sortableColumns = getSortableColumns(columns);
         const filteredRows = getFilteredRows(rows, state.filterColumn, state.filterValue);
         const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
-        const thead = `<tr>${columns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
-        const options = columns
+        const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+        const options = sortableColumns
           .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
 
@@ -222,17 +288,17 @@
           .join("");
 
         if (state.key === "all") {
-          const fixedColumns = ["horse_no", "horse_name"].filter((c) => columns.includes(c));
-          const scrollColumns = columns.filter((c) => !fixedColumns.includes(c));
+          const fixedColumns = ["horse"].filter((c) => displayColumns.includes(c));
+          const scrollColumns = displayColumns.filter((c) => !fixedColumns.includes(c));
 
           const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
           const scrollHead = `<tr>${scrollColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
 
           const fixedBody = sortedRows
-            .map((row) => `<tr>${fixedColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, row[c]))}</td>`).join("")}</tr>`)
+            .map((row) => `<tr>${fixedColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
             .join("");
           const scrollBody = sortedRows
-            .map((row) => `<tr>${scrollColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, row[c]))}</td>`).join("")}</tr>`)
+            .map((row) => `<tr>${scrollColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
             .join("");
 
           return `
@@ -275,13 +341,13 @@
             const highCol = numeric.length ? numeric.reduce((a, b) => (a.value >= b.value ? a : b)).col : null;
             const lowCol = numeric.length ? numeric.reduce((a, b) => (a.value <= b.value ? a : b)).col : null;
 
-            const tds = columns
+            const tds = displayColumns
               .map((c) => {
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
                 cls = `${cls} ${getColumnClass(c)}`.trim();
-                return `<td class="${cls}">${escapeHtml(formatCellValue(c, row[c]))}</td>`;
+                return `<td class="${cls}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`;
               })
               .join("");
 
