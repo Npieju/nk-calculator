@@ -4,9 +4,154 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nk-calculator</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.5; }
+      .row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+      input { padding: 8px; min-width: 360px; }
+      button { padding: 8px 14px; cursor: pointer; }
+      .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; }
+      table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; }
+      th { background: #f5f5f5; position: sticky; top: 0; }
+      .muted { color: #666; }
+      .ok { color: #0a7a1c; }
+      .warn { color: #9a6b00; }
+      .err { color: #b00020; }
+      .scroll { overflow: auto; max-height: 420px; }
+    </style>
   </head>
   <body>
-    <h1>nk-calculator frontend scaffold</h1>
-    <p>ここにURL入力と比較テーブルUIを実装します。</p>
+    <h1>nk-calculator</h1>
+    <p class="muted">URL入力 → オッズ取得 → 比較1/2/3 を一気通貫で実行します。</p>
+
+    <div class="row">
+      <label>
+        API Base URL
+        <br />
+        <input id="apiBase" value="http://localhost:8000" />
+      </label>
+    </div>
+    <div class="row">
+      <label>
+        レースURL
+        <br />
+        <input id="raceUrl" value="https://race.netkeiba.com/race/shutuba.html?race_id=202608020611&rf=race_list" />
+      </label>
+    </div>
+    <div class="row">
+      <label>
+        消し馬（馬番カンマ区切り）
+        <br />
+        <input id="excluded" value="" />
+      </label>
+      <div style="align-self: end">
+        <button id="runBtn">分析実行</button>
+      </div>
+    </div>
+
+    <div id="meta" class="card"></div>
+    <div id="status" class="card"></div>
+    <div id="tables"></div>
+
+    <script>
+      const runBtn = document.getElementById("runBtn");
+      const metaBox = document.getElementById("meta");
+      const statusBox = document.getElementById("status");
+      const tablesBox = document.getElementById("tables");
+
+      function escapeHtml(text) {
+        return String(text ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function renderTable(title, rows) {
+        if (!Array.isArray(rows) || rows.length === 0) {
+          return `<div class="card"><h3>${escapeHtml(title)}</h3><p class="muted">データなし</p></div>`;
+        }
+        const columns = Object.keys(rows[0]);
+        const thead = `<tr>${columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+        const tbody = rows
+          .map((row) => `<tr>${columns.map((c) => `<td>${escapeHtml(row[c])}</td>`).join("")}</tr>`)
+          .join("");
+        return `
+          <div class="card">
+            <h3>${escapeHtml(title)}</h3>
+            <div class="scroll">
+              <table>
+                <thead>${thead}</thead>
+                <tbody>${tbody}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }
+
+      function renderOddsStatus(statusMap) {
+        const rows = Object.entries(statusMap || {}).map(([k, v]) => {
+          const st = v?.status || "unknown";
+          const cls = st === "ok" ? "ok" : st === "error" ? "err" : "warn";
+          return `<tr>
+            <td>${escapeHtml(k)}</td>
+            <td class="${cls}">${escapeHtml(st)}</td>
+            <td>${escapeHtml(v?.rows)}</td>
+            <td>${escapeHtml(v?.message)}</td>
+          </tr>`;
+        });
+        return `
+          <h3>取得ステータス</h3>
+          <table>
+            <thead><tr><th>券種</th><th>status</th><th>rows</th><th>message</th></tr></thead>
+            <tbody>${rows.join("")}</tbody>
+          </table>`;
+      }
+
+      async function runAnalyze() {
+        const apiBase = document.getElementById("apiBase").value.trim();
+        const raceUrl = document.getElementById("raceUrl").value.trim();
+        const excluded = document.getElementById("excluded").value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        metaBox.innerHTML = "実行中...";
+        statusBox.innerHTML = "";
+        tablesBox.innerHTML = "";
+
+        try {
+          const resp = await fetch(`${apiBase}/v1/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ race_url: raceUrl, excluded_horses: excluded }),
+          });
+          const data = await resp.json();
+          if (!resp.ok) {
+            throw new Error(data?.detail || `HTTP ${resp.status}`);
+          }
+
+          const race = data.race || {};
+          metaBox.innerHTML = `
+            <h3>レース情報</h3>
+            <div>race_id: ${escapeHtml(race.race_id)}</div>
+            <div>race_name: ${escapeHtml(race.race_name)}</div>
+            <div>race_date: ${escapeHtml(race.race_date)}</div>
+          `;
+
+          statusBox.innerHTML = renderOddsStatus(data.odds_status || {});
+
+          const comparisons = data.comparisons || {};
+          tablesBox.innerHTML = [
+            renderTable("全券種比較", comparisons.all_market_compare || []),
+            renderTable("比較1: 単勝 vs 馬単1着流し vs 三連単1着流し", comparisons.compare1 || []),
+            renderTable("比較2: 複勝 vs 三連複流し", comparisons.compare2 || []),
+            renderTable("比較3: 馬連 vs 馬単裏表", comparisons.compare3 || []),
+          ].join("");
+        } catch (err) {
+          metaBox.innerHTML = `<p class="err">${escapeHtml(err.message || err)}</p>`;
+        }
+      }
+
+      runBtn.addEventListener("click", runAnalyze);
+    </script>
   </body>
 </html>

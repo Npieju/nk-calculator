@@ -22,11 +22,26 @@ URL入力からオッズ取得・比較計算までを一気通貫で実行す�
 GitHub Pagesは静的ホスティングのみのため、スクレイピングや計算処理は `apps/backend` で実行します。
 フロントエンドは `apps/backend` のAPIを呼び出す構成にします。
 
-## Quick Start (planned)
+## Quick Start (MVP)
 
-1. `apps/backend` を起動
-2. `apps/frontend` を起動
-3. フロントから `POST /v1/analyze` を実行
+### 1) Backend
+
+```bash
+cd apps/backend
+/workspace/.venv/bin/pip install -r requirements.txt
+/workspace/.venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+### 2) Frontend (static)
+
+任意の静的サーバーで `apps/frontend/index.html` を配信します。
+
+```bash
+cd apps/frontend
+/workspace/.venv/bin/python -m http.server 5173
+```
+
+ブラウザで `http://localhost:5173` を開き、`API Base URL` を `http://localhost:8000` にして実行します。
 
 詳細は以下:
 

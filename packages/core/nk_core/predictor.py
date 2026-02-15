@@ -1,0 +1,232 @@
+from __future__ import annotations
+
+import pandas as pd
+
+
+BET_TYPES = ["単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "三連複", "三連単"]
+
+
+def _parse_odds_value(value: object) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text in {"-", "--", "---.-"}:
+        return None
+    text = text.replace(",", "").replace("〜", "-")
+    if "-" in text:
+        parts = [part.strip() for part in text.split("-") if part.strip()]
+        values: list[float] = []
+        for part in parts:
+            try:
+                values.append(float(part))
+            except ValueError:
+                continue
+        return sum(values) / len(values) if values else None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _combo_numbers(combo: object) -> list[str]:
+    text = str(combo).strip()
+    return [p.strip() for p in text.split("-") if p.strip()] if text else []
+
+
+def _synthetic_odds(odds_list: list[float]) -> float | None:
+    probs = [1.0 / odd for odd in odds_list if odd and odd > 0]
+    total = sum(probs)
+    return (1.0 / total) if total > 0 else None
+
+
+def _horse_sort_key(horse_no: str) -> int:
+    return int(horse_no) if horse_no.isdigit() else 9999
+
+
+def _add_spread_column(df: pd.DataFrame, odds_columns: list[str], column_name: str = "差異幅") -> pd.DataFrame:
+    frame = df.copy()
+    if frame.empty:
+        frame[column_name] = []
+        return frame
+    numeric = frame[odds_columns].apply(pd.to_numeric, errors="coerce")
+    frame[column_name] = (numeric.max(axis=1) - numeric.min(axis=1)).round(4)
+    return frame
+
+
+def _collect_horse_flow_odds(
+    frame: pd.DataFrame,
+    horses: list[str],
+    excluded: set[str],
+    mode: str,
+    position: int | None = None,
+) -> dict[str, float | None]:
+    data: dict[str, list[float]] = {h: [] for h in horses}
+    if frame is None or frame.empty or not {"組み合わせ", "オッズ"}.issubset(set(frame.columns)):
+        return {h: None for h in horses}
+
+    for _, row in frame.iterrows():
+        combo = _combo_numbers(row.get("組み合わせ"))
+        if not combo or any(item in excluded for item in combo):
+            continue
+        odd = _parse_odds_value(row.get("オッズ"))
+        if odd is None or odd <= 0:
+            continue
+
+        targets: list[str] = []
+        if mode == "contains":
+            targets = [h for h in combo if h in data]
+        elif mode == "position" and position is not None:
+            if len(combo) > position and combo[position] in data:
+                targets = [combo[position]]
+
+        for horse_no in targets:
+            data[horse_no].append(odd)
+
+    return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
+
+
+def _pair_key(a: str, b: str) -> tuple[str, str]:
+    return (a, b) if _horse_sort_key(a) <= _horse_sort_key(b) else (b, a)
+
+
+def _build_pair_compare(
+    umaren: pd.DataFrame | None,
+    umatan: pd.DataFrame | None,
+    horse_name_map: dict[str, str],
+    excluded: set[str],
+) -> pd.DataFrame:
+    umaren_map: dict[tuple[str, str], float] = {}
+    if umaren is not None and not umaren.empty and {"組み合わせ", "オッズ"}.issubset(set(umaren.columns)):
+        for _, row in umaren.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 2 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                umaren_map[_pair_key(nums[0], nums[1])] = odd
+
+    umatan_dir_map: dict[tuple[str, str], float] = {}
+    if umatan is not None and not umatan.empty and {"組み合わせ", "オッズ"}.issubset(set(umatan.columns)):
+        for _, row in umatan.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 2 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                umatan_dir_map[(nums[0], nums[1])] = odd
+
+    pair_rows: list[dict[str, object]] = []
+    all_pairs = set(umaren_map.keys())
+    for a, b in list(umatan_dir_map.keys()):
+        all_pairs.add(_pair_key(a, b))
+
+    for a, b in sorted(all_pairs, key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]))):
+        ab = umatan_dir_map.get((a, b))
+        ba = umatan_dir_map.get((b, a))
+        synth_umatan = _synthetic_odds([x for x in [ab, ba] if x is not None])
+        umaren_odd = umaren_map.get((a, b))
+        pair_rows.append(
+            {
+                "馬番A": int(a) if a.isdigit() else a,
+                "馬名A": horse_name_map.get(a, ""),
+                "馬番B": int(b) if b.isdigit() else b,
+                "馬名B": horse_name_map.get(b, ""),
+                "馬連オッズ": round(umaren_odd, 4) if umaren_odd is not None else None,
+                "馬単表裏合成オッズ": round(synth_umatan, 4) if synth_umatan is not None else None,
+            }
+        )
+
+    pair_df = pd.DataFrame(pair_rows)
+    if pair_df.empty:
+        return pair_df
+    return _add_spread_column(pair_df, ["馬連オッズ", "馬単表裏合成オッズ"])
+
+
+def _build_horse_master(entries: list[dict[str, object]], tansho_frame: pd.DataFrame, excluded: set[str]) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    if not tansho_frame.empty and {"馬番", "馬名"}.issubset(set(tansho_frame.columns)):
+        for _, row in tansho_frame.iterrows():
+            horse_no = str(row.get("馬番", "")).strip()
+            if horse_no and horse_no not in excluded:
+                rows.append({"馬番": horse_no, "馬名": str(row.get("馬名", "")).strip()})
+    else:
+        for row in entries:
+            horse_no = str(row.get("馬番", row.get("col_2", ""))).strip()
+            horse_name = str(row.get("馬名", row.get("col_4", ""))).strip()
+            if horse_no and horse_name and horse_no not in excluded:
+                rows.append({"馬番": horse_no, "馬名": horse_name})
+
+    frame = pd.DataFrame(rows).drop_duplicates(subset=["馬番"], keep="first")
+    if frame.empty:
+        raise ValueError("馬番・馬名の抽出に失敗しました")
+    frame["馬番_num"] = pd.to_numeric(frame["馬番"], errors="coerce")
+    frame = frame.sort_values(by=["馬番_num"]).reset_index(drop=True)
+    return frame
+
+
+def build_comparisons(
+    odds: dict[str, list[dict[str, object]]],
+    entries: list[dict[str, object]],
+    excluded_horses: list[str] | None = None,
+) -> dict[str, list[dict[str, object]]]:
+    excluded = {str(x).strip() for x in (excluded_horses or []) if str(x).strip()}
+
+    frames = {bet_type: pd.DataFrame(odds.get(bet_type, [])) for bet_type in BET_TYPES}
+    tansho = frames.get("単勝", pd.DataFrame())
+    fukusho = frames.get("複勝", pd.DataFrame())
+
+    tansho_map: dict[str, float | None] = {}
+    if not tansho.empty and {"馬番", "オッズ"}.issubset(set(tansho.columns)):
+        for _, row in tansho.iterrows():
+            horse_no = str(row.get("馬番", "")).strip()
+            if horse_no:
+                tansho_map[horse_no] = _parse_odds_value(row.get("オッズ"))
+
+    fukusho_map: dict[str, float | None] = {}
+    if not fukusho.empty and {"馬番", "オッズ"}.issubset(set(fukusho.columns)):
+        for _, row in fukusho.iterrows():
+            horse_no = str(row.get("馬番", "")).strip()
+            if horse_no and horse_no not in excluded:
+                fukusho_map[horse_no] = _parse_odds_value(row.get("オッズ"))
+
+    master = _build_horse_master(entries, tansho, excluded)
+    master["単勝オッズ"] = master["馬番"].astype(str).map(tansho_map)
+
+    horse_numbers = [str(x) for x in master["馬番"].tolist()]
+    horse_name_map = {str(row["馬番"]): row["馬名"] for _, row in master.iterrows()}
+
+    umatan_first = _collect_horse_flow_odds(frames.get("馬単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=0)
+    sanrentan_first = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=0)
+    umaren_flow = _collect_horse_flow_odds(frames.get("馬連", pd.DataFrame()), horse_numbers, excluded, mode="contains")
+    wide_flow = _collect_horse_flow_odds(frames.get("ワイド", pd.DataFrame()), horse_numbers, excluded, mode="contains")
+    sanrenpuku_flow = _collect_horse_flow_odds(frames.get("三連複", pd.DataFrame()), horse_numbers, excluded, mode="contains")
+
+    all_market_compare = master[["馬番", "馬名", "単勝オッズ"]].copy()
+    all_market_compare["複勝オッズ"] = all_market_compare["馬番"].astype(str).map(fukusho_map)
+    all_market_compare["馬連流し合成オッズ"] = all_market_compare["馬番"].astype(str).map(umaren_flow)
+    all_market_compare["ワイド流し合成オッズ"] = all_market_compare["馬番"].astype(str).map(wide_flow)
+    all_market_compare["馬単(1着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(umatan_first)
+    all_market_compare["三連複流し合成オッズ"] = all_market_compare["馬番"].astype(str).map(sanrenpuku_flow)
+    all_market_compare["三連単(1着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(sanrentan_first)
+    all_market_compare["馬番"] = pd.to_numeric(all_market_compare["馬番"], errors="coerce").astype("Int64")
+
+    compare1 = master[["馬番", "馬名", "単勝オッズ"]].copy()
+    compare1["馬単(1着流し)合成オッズ"] = compare1["馬番"].astype(str).map(umatan_first)
+    compare1["三連単(1着流し)合成オッズ"] = compare1["馬番"].astype(str).map(sanrentan_first)
+    compare1["馬番"] = pd.to_numeric(compare1["馬番"], errors="coerce").astype("Int64")
+    compare1 = _add_spread_column(compare1, ["単勝オッズ", "馬単(1着流し)合成オッズ", "三連単(1着流し)合成オッズ"])
+
+    compare2 = master[["馬番", "馬名"]].copy()
+    compare2["複勝オッズ"] = compare2["馬番"].astype(str).map(fukusho_map)
+    compare2["三連複流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrenpuku_flow)
+    compare2["馬番"] = pd.to_numeric(compare2["馬番"], errors="coerce").astype("Int64")
+    compare2 = _add_spread_column(compare2, ["複勝オッズ", "三連複流し合成オッズ"])
+
+    compare3 = _build_pair_compare(frames.get("馬連", pd.DataFrame()), frames.get("馬単", pd.DataFrame()), horse_name_map, excluded)
+
+    return {
+        "all_market_compare": all_market_compare.to_dict(orient="records"),
+        "compare1": compare1.to_dict(orient="records"),
+        "compare2": compare2.to_dict(orient="records"),
+        "compare3": compare3.to_dict(orient="records"),
+    }
