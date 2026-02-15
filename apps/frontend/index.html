@@ -10,6 +10,7 @@
       input { padding: 8px; min-width: 360px; }
       button { padding: 8px 14px; cursor: pointer; }
       .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; }
+      .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
       table { border-collapse: collapse; width: 100%; margin-top: 8px; }
       th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; }
       th { background: #f5f5f5; position: sticky; top: 0; }
@@ -64,6 +65,7 @@
       const tablesBox = document.getElementById("tables");
       const tableOrder = ["all", "c1", "c2", "c3"];
       const tableStates = {};
+      let statusCollapsed = true;
 
       function escapeHtml(text) {
         return String(text ?? "")
@@ -122,7 +124,7 @@
         const title = state.title;
         const rows = state.rows;
         if (!Array.isArray(rows) || rows.length === 0) {
-          return `<div class="card"><h3>${escapeHtml(title)}</h3><p class="muted">データなし</p></div>`;
+          return `<div class="card"><div class="card-head"><h3>${escapeHtml(title)}</h3><button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div>${state.collapsed ? "" : '<p class="muted">データなし</p>'}</div>`;
         }
 
         const columns = Object.keys(rows[0]);
@@ -157,7 +159,11 @@
 
         return `
           <div class="card">
-            <h3>${escapeHtml(title)}</h3>
+            <div class="card-head">
+              <h3>${escapeHtml(title)}</h3>
+              <button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button>
+            </div>
+            ${state.collapsed ? "" : `
             <div class="toolbar">
               <span>ソート列</span>
               <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
@@ -169,6 +175,7 @@
                 <tbody>${tbody}</tbody>
               </table>
             </div>
+            `}
           </div>`;
       }
 
@@ -192,6 +199,17 @@
         renderTables();
       };
 
+      window.toggleTableCollapse = (key) => {
+        if (!tableStates[key]) return;
+        tableStates[key].collapsed = !tableStates[key].collapsed;
+        renderTables();
+      };
+
+      window.toggleStatusCollapse = () => {
+        statusCollapsed = !statusCollapsed;
+        renderStatus(window.lastOddsStatus || {});
+      };
+
       function renderOddsStatus(statusMap) {
         const rows = Object.entries(statusMap || {}).map(([k, v]) => {
           const st = v?.status || "unknown";
@@ -204,11 +222,21 @@
           </tr>`;
         });
         return `
-          <h3>取得ステータス</h3>
+          <div class="card-head">
+            <h3>取得ステータス</h3>
+            <button onclick="window.toggleStatusCollapse()">${statusCollapsed ? "展開" : "折り畳み"}</button>
+          </div>
+          ${statusCollapsed ? "" : `
           <table>
             <thead><tr><th>券種</th><th>status</th><th>rows</th><th>message</th></tr></thead>
             <tbody>${rows.join("")}</tbody>
-          </table>`;
+          </table>
+          `}`;
+      }
+
+      function renderStatus(statusMap) {
+        window.lastOddsStatus = statusMap || {};
+        statusBox.innerHTML = renderOddsStatus(window.lastOddsStatus);
       }
 
       async function runAnalyze() {
@@ -242,7 +270,8 @@
             <div>race_date: ${escapeHtml(race.race_date)}</div>
           `;
 
-          statusBox.innerHTML = renderOddsStatus(data.odds_status || {});
+          statusCollapsed = true;
+          renderStatus(data.odds_status || {});
 
           const comparisons = data.comparisons || {};
           tableStates.all = {
@@ -252,6 +281,7 @@
             highlightColumns: [],
             sortBy: (comparisons.all_market_compare && comparisons.all_market_compare[0] && Object.keys(comparisons.all_market_compare[0])[0]) || "",
             sortOrder: "asc",
+            collapsed: false,
           };
           tableStates.c1 = {
             key: "c1",
@@ -260,6 +290,7 @@
             highlightColumns: ["単勝オッズ", "馬単(1着流し)合成オッズ", "三連単(1着流し)合成オッズ"],
             sortBy: "差異幅",
             sortOrder: "desc",
+            collapsed: false,
           };
           tableStates.c2 = {
             key: "c2",
@@ -268,6 +299,7 @@
             highlightColumns: ["複勝オッズ", "三連複流し合成オッズ"],
             sortBy: "差異幅",
             sortOrder: "desc",
+            collapsed: false,
           };
           tableStates.c3 = {
             key: "c3",
@@ -276,6 +308,7 @@
             highlightColumns: ["馬連オッズ", "馬単表裏合成オッズ"],
             sortBy: "差異幅",
             sortOrder: "desc",
+            collapsed: false,
           };
 
           renderTables();
