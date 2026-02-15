@@ -128,6 +128,19 @@ def _collect_horse_flow_odds_first_column(
     return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
 
 
+def _combine_synthetic_maps(*maps: dict[str, float | None]) -> dict[str, float | None]:
+    keys: set[str] = set()
+    for item in maps:
+        keys.update(item.keys())
+
+    out: dict[str, float | None] = {}
+    for key in keys:
+        values = [item.get(key) for item in maps]
+        odds_values = [value for value in values if value is not None and value > 0]
+        out[key] = _synthetic_odds(odds_values)
+    return out
+
+
 def _collect_trifecta_box_flow_odds(
     frame: pd.DataFrame,
     horses: list[str],
@@ -300,6 +313,7 @@ def build_comparisons(
     sanrentan_first = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=0)
     sanrentan_second = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=1)
     sanrentan_third = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=2)
+    sanrentan_any_pos = _combine_synthetic_maps(sanrentan_first, sanrentan_second, sanrentan_third)
     umaren_flow = _collect_horse_flow_odds_first_column(frames.get("馬連", pd.DataFrame()), horse_numbers, excluded, combo_size=2)
     wide_flow = _collect_horse_flow_odds_first_column(frames.get("ワイド", pd.DataFrame()), horse_numbers, excluded, combo_size=2)
     sanrenpuku_flow = _collect_horse_flow_odds_first_column(frames.get("三連複", pd.DataFrame()), horse_numbers, excluded, combo_size=3)
@@ -325,7 +339,7 @@ def build_comparisons(
     compare2 = master[["馬番", "馬名"]].copy()
     compare2["複勝オッズ"] = compare2["馬番"].astype(str).map(fukusho_map)
     compare2["三連複流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrenpuku_flow)
-    compare2["三連単1頭流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrentan_first)
+    compare2["三連単1頭流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrentan_any_pos)
     compare2["馬番"] = pd.to_numeric(compare2["馬番"], errors="coerce").astype("Int64")
     compare2 = _add_spread_column(compare2, ["複勝オッズ", "三連複流し合成オッズ", "三連単1頭流し合成オッズ"])
 
