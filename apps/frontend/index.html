@@ -105,6 +105,7 @@
         exacta_first_flow_odds: "馬単1着",
         exacta_second_flow_odds: "馬単2着",
         trio_flow_odds: "三連複",
+        trifecta_single_head_flow_odds: "三連単1頭",
         trifecta_first_flow_odds: "三単1着",
         trifecta_second_flow_odds: "三単2着",
         trifecta_third_flow_odds: "三単3着",
@@ -115,6 +116,7 @@
         horse_name_b: "馬名B",
         quinella_odds: "馬連",
         exacta_both_flow_odds: "馬単裏表",
+        trifecta_top2_both_any_third_odds: "三単1-2着裏表3着全流し",
       };
 
       function escapeHtml(text) {
@@ -399,9 +401,9 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "比較2（全流し合成オッズ）: 複勝 / 三連複",
+            title: "比較2（全流し合成オッズ）: 複勝 / 三連複 / 三連単1頭",
             rows: comparisons.compare2 || [],
-            highlightColumns: ["place_odds", "trio_flow_odds"],
+            highlightColumns: ["place_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
@@ -410,9 +412,9 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "比較3（合成オッズ）: 馬連 / 馬単裏表",
+            title: "比較3（合成オッズ）: 馬連 / 馬単裏表 / 三単1-2着裏表3着全流し",
             rows: comparisons.compare3 || [],
-            highlightColumns: ["quinella_odds", "exacta_both_flow_odds"],
+            highlightColumns: ["quinella_odds", "exacta_both_flow_odds", "trifecta_top2_both_any_third_odds"],
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,

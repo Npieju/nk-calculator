@@ -128,10 +128,46 @@ def _collect_horse_flow_odds_first_column(
     return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
 
 
+def _collect_trifecta_box_flow_odds(
+    frame: pd.DataFrame,
+    horses: list[str],
+    excluded: set[str],
+) -> dict[str, float | None]:
+    data: dict[str, list[float]] = {h: [] for h in horses}
+    trio_odds_map: dict[tuple[str, str, str], list[float]] = {}
+
+    if frame is None or frame.empty or not {"組み合わせ", "オッズ"}.issubset(set(frame.columns)):
+        return {h: None for h in horses}
+
+    for _, row in frame.iterrows():
+        combo = _combo_numbers(row.get("組み合わせ"))
+        if len(combo) != 3 or any(item in excluded for item in combo):
+            continue
+
+        odd = _parse_odds_value(row.get("オッズ"))
+        if odd is None or odd <= 0:
+            continue
+
+        unordered_key = tuple(sorted(combo))
+        trio_odds_map.setdefault(unordered_key, []).append(odd)
+
+    for trio, odds_list in trio_odds_map.items():
+        synth_box = _synthetic_odds(odds_list)
+        if synth_box is None:
+            continue
+        for horse_no in trio:
+            if horse_no in data:
+                data[horse_no].append(synth_box)
+
+    return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
+
+
 def _build_pair_compare(
     umaren: pd.DataFrame | None,
     umatan: pd.DataFrame | None,
+    sanrentan: pd.DataFrame | None,
     horse_name_map: dict[str, str],
+    horses: list[str],
     excluded: set[str],
 ) -> pd.DataFrame:
     umaren_dir_map: dict[tuple[str, str], float] = {}
@@ -156,6 +192,16 @@ def _build_pair_compare(
             if odd is not None and odd > 0:
                 umatan_dir_map[(nums[0], nums[1])] = odd
 
+    sanrentan_map: dict[tuple[str, str, str], float] = {}
+    if sanrentan is not None and not sanrentan.empty and {"組み合わせ", "オッズ"}.issubset(set(sanrentan.columns)):
+        for _, row in sanrentan.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 3 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                sanrentan_map[(nums[0], nums[1], nums[2])] = odd
+
     pair_rows: list[dict[str, object]] = []
     all_pairs = set(umaren_dir_map.keys()) | set(umatan_dir_map.keys())
 
@@ -164,6 +210,20 @@ def _build_pair_compare(
         ba = umatan_dir_map.get((b, a))
         synth_umatan = _synthetic_odds([x for x in [ab, ba] if x is not None])
         umaren_odd = umaren_dir_map.get((a, b))
+
+        sanrentan_top2_any_third_odds: list[float] = []
+        for c in horses:
+            if c in {a, b}:
+                continue
+            ab_c = sanrentan_map.get((a, b, c))
+            ba_c = sanrentan_map.get((b, a, c))
+            if ab_c is not None:
+                sanrentan_top2_any_third_odds.append(ab_c)
+            if ba_c is not None:
+                sanrentan_top2_any_third_odds.append(ba_c)
+
+        synth_top2_any_third = _synthetic_odds(sanrentan_top2_any_third_odds)
+
         pair_rows.append(
             {
                 "馬番A": int(a) if a.isdigit() else a,
@@ -172,13 +232,14 @@ def _build_pair_compare(
                 "馬名B": horse_name_map.get(b, ""),
                 "馬連オッズ": round(umaren_odd, 4) if umaren_odd is not None else None,
                 "馬単表裏合成オッズ": round(synth_umatan, 4) if synth_umatan is not None else None,
+                "三連単1-2着裏表3着全流し合成オッズ": round(synth_top2_any_third, 4) if synth_top2_any_third is not None else None,
             }
         )
 
     pair_df = pd.DataFrame(pair_rows)
     if pair_df.empty:
         return pair_df
-    return _add_spread_column(pair_df, ["馬連オッズ", "馬単表裏合成オッズ"])
+    return _add_spread_column(pair_df, ["馬連オッズ", "馬単表裏合成オッズ", "三連単1-2着裏表3着全流し合成オッズ"])
 
 
 def _build_horse_master(entries: list[dict[str, object]], tansho_frame: pd.DataFrame, excluded: set[str]) -> pd.DataFrame:
@@ -264,10 +325,18 @@ def build_comparisons(
     compare2 = master[["馬番", "馬名"]].copy()
     compare2["複勝オッズ"] = compare2["馬番"].astype(str).map(fukusho_map)
     compare2["三連複流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrenpuku_flow)
+    compare2["三連単1頭流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrentan_first)
     compare2["馬番"] = pd.to_numeric(compare2["馬番"], errors="coerce").astype("Int64")
-    compare2 = _add_spread_column(compare2, ["複勝オッズ", "三連複流し合成オッズ"])
+    compare2 = _add_spread_column(compare2, ["複勝オッズ", "三連複流し合成オッズ", "三連単1頭流し合成オッズ"])
 
-    compare3 = _build_pair_compare(frames.get("馬連", pd.DataFrame()), frames.get("馬単", pd.DataFrame()), horse_name_map, excluded)
+    compare3 = _build_pair_compare(
+        frames.get("馬連", pd.DataFrame()),
+        frames.get("馬単", pd.DataFrame()),
+        frames.get("三連単", pd.DataFrame()),
+        horse_name_map,
+        horse_numbers,
+        excluded,
+    )
 
     return {
         "all_market_compare": all_market_compare.to_dict(orient="records"),

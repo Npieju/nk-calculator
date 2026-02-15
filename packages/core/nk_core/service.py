@@ -17,6 +17,7 @@ COMPARE_COLUMN_MAP = {
     "馬単(1着流し)合成オッズ": "exacta_first_flow_odds",
     "馬単(2着流し)合成オッズ": "exacta_second_flow_odds",
     "三連複流し合成オッズ": "trio_flow_odds",
+    "三連単1頭流し合成オッズ": "trifecta_single_head_flow_odds",
     "三連単(1着流し)合成オッズ": "trifecta_first_flow_odds",
     "三連単(2着流し)合成オッズ": "trifecta_second_flow_odds",
     "三連単(3着流し)合成オッズ": "trifecta_third_flow_odds",
@@ -27,6 +28,7 @@ COMPARE_COLUMN_MAP = {
     "馬名B": "horse_name_b",
     "馬連オッズ": "quinella_odds",
     "馬単表裏合成オッズ": "exacta_both_flow_odds",
+    "三連単1-2着裏表3着全流し合成オッズ": "trifecta_top2_both_any_third_odds",
 }
 
 
