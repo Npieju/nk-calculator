@@ -43,13 +43,16 @@ def _horse_sort_key(horse_no: str) -> int:
     return int(horse_no) if horse_no.isdigit() else 9999
 
 
-def _add_spread_column(df: pd.DataFrame, odds_columns: list[str], column_name: str = "差異幅") -> pd.DataFrame:
+def _add_spread_column(df: pd.DataFrame, odds_columns: list[str], column_name: str = "差異率") -> pd.DataFrame:
     frame = df.copy()
     if frame.empty:
         frame[column_name] = []
         return frame
     numeric = frame[odds_columns].apply(pd.to_numeric, errors="coerce")
-    frame[column_name] = (numeric.max(axis=1) - numeric.min(axis=1)).round(4)
+    max_values = numeric.max(axis=1)
+    min_values = numeric.min(axis=1)
+    ratio = (max_values / min_values.where(min_values > 0)) * 100
+    frame[column_name] = ratio.round(4)
     return frame
 
 

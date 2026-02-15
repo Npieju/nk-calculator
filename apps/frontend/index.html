@@ -24,6 +24,10 @@
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
+      .all-split-wrap { display: flex; width: 100%; }
+      .all-fixed { flex: 0 0 auto; background: #fff; border-right: 1px solid #ddd; }
+      .all-fixed table, .all-scroll table { margin-top: 0; }
+      .all-scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; width: 100%; }
       .excluded-picker { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin-top: 6px; max-width: 480px; }
       .excluded-item { display: flex; align-items: center; gap: 4px; font-size: 12px; }
       .excluded-item input { width: auto; padding: 0; }
@@ -109,7 +113,7 @@
         trifecta_first_flow_odds: "三単1着",
         trifecta_second_flow_odds: "三単2着",
         trifecta_third_flow_odds: "三単3着",
-        spread: "差異幅",
+        spread: "差異率",
         horse_no_a: "馬番A",
         horse_name_a: "馬名A",
         horse_no_b: "馬番B",
@@ -142,6 +146,9 @@
         const n = toNumber(value);
         if (n === null) {
           return value;
+        }
+        if (String(columnName) === "spread") {
+          return `${n.toFixed(1)}%`;
         }
         return n.toFixed(1);
       }
@@ -213,6 +220,50 @@
         const filterOptions = [`<option value="__all__" ${state.filterValue === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(filterCandidates.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
           .join("");
+
+        if (state.key === "all") {
+          const fixedColumns = ["horse_no", "horse_name"].filter((c) => columns.includes(c));
+          const scrollColumns = columns.filter((c) => !fixedColumns.includes(c));
+
+          const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+          const scrollHead = `<tr>${scrollColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+
+          const fixedBody = sortedRows
+            .map((row) => `<tr>${fixedColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, row[c]))}</td>`).join("")}</tr>`)
+            .join("");
+          const scrollBody = sortedRows
+            .map((row) => `<tr>${scrollColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, row[c]))}</td>`).join("")}</tr>`)
+            .join("");
+
+          return `
+            <div class="card">
+              <div class="card-head">
+                <h3>${escapeHtml(title)}</h3>
+                <button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button>
+              </div>
+              ${state.collapsed ? "" : `
+              <div class="toolbar">
+                <span>ソート列</span>
+                <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
+                <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+              </div>
+              <div class="all-split-wrap">
+                <div class="all-fixed">
+                  <table>
+                    <thead>${fixedHead}</thead>
+                    <tbody>${fixedBody}</tbody>
+                  </table>
+                </div>
+                <div class="all-scroll">
+                  <table>
+                    <thead>${scrollHead}</thead>
+                    <tbody>${scrollBody}</tbody>
+                  </table>
+                </div>
+              </div>
+              `}
+            </div>`;
+        }
 
         const tbody = sortedRows
           .map((row) => {
