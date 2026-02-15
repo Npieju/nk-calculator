@@ -25,12 +25,19 @@
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
       th.col-clip, td.col-clip {
-        width: 9em;
-        min-width: 9em;
-        max-width: 9em;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+      th.col-num, td.col-num {
+        width: 8ch;
+        min-width: 8ch;
+        max-width: 8ch;
+      }
+      th.col-text, td.col-text {
+        width: 9em;
+        min-width: 9em;
+        max-width: 9em;
       }
       @media (max-width: 640px) {
         body { margin: 10px; }
@@ -135,6 +142,12 @@
         return COLUMN_LABELS_JA[columnName] || String(columnName);
       }
 
+      function getColumnClass(columnName) {
+        const c = String(columnName);
+        const isNumeric = c.includes("_odds") || c === "spread" || c.includes("horse_no");
+        return isNumeric ? "col-clip col-num" : "col-clip col-text";
+      }
+
       function getSortedRows(rows, sortBy, sortOrder) {
         const copied = [...rows];
         if (!sortBy) return copied;
@@ -178,7 +191,7 @@
         const columns = Object.keys(rows[0]);
         const filteredRows = getFilteredRows(rows, state.filterColumn, state.filterValue);
         const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
-        const thead = `<tr>${columns.map((c) => `<th class="col-clip">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+        const thead = `<tr>${columns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = columns
           .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
@@ -205,7 +218,7 @@
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
-                cls = `${cls} col-clip`.trim();
+                cls = `${cls} ${getColumnClass(c)}`.trim();
                 return `<td class="${cls}">${escapeHtml(formatCellValue(c, row[c]))}</td>`;
               })
               .join("");
