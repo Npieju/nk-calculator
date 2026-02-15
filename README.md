@@ -48,3 +48,10 @@ cd apps/frontend
 - [Architecture](docs/architecture.md)
 - [API Contract](docs/api-contract.md)
 - [Deployment](docs/deployment.md)
+
+## Deploy
+
+- Frontend: GitHub Pages（`.github/workflows/deploy-pages.yml`）
+- Backend: Render（`render.yaml`）
+
+事前にGitHub repository variable `API_BASE_URL` を設定してください。

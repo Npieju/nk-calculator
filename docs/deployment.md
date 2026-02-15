@@ -2,49 +2,60 @@
 
 ## Constraint
 
-GitHub Pagesは静的配信のみ。バックエンドは別ホスティングが必要。
+GitHub Pagesは静的配信のみ。スクレイピング・比較計算はバックエンドで実行する。
 
-## Recommended
+## Target
 
 - Frontend: GitHub Pages
-- Backend: Render または Fly.io
-- Optional Cache/DB: Redis / Postgres
+- Backend: Render (Web Service)
 
-## Environments
+## Implemented Files
 
-- dev: ローカルDocker or 直接実行
-- stg: 低コストインスタンス
-- prod: APIスケール設定あり
+- Frontend deploy workflow: `.github/workflows/deploy-pages.yml`
+- Render blueprint: `render.yaml`
 
-## CI/CD (proposed)
+## 1) Backend (Render)
 
-### Frontend Workflow
+1. Renderで `New +` → `Blueprint` を選択し、このリポジトリを指定
+2. `render.yaml` から `nk-calculator-api` が作成される
+3. Deploy完了後、API URLを控える（例: `https://nk-calculator-api.onrender.com`）
 
-- push to main
-- build static assets
-- deploy to GitHub Pages
+### Required Env Vars
 
-### Backend Workflow
+- `ALLOWED_ORIGINS`: フロントのオリジンを指定
+	- 例: `https://Npieju.github.io`
 
-- push to main
-- run tests/lint
-- build container
-- deploy to Render/Fly
+## 2) Frontend (GitHub Pages)
 
-## Configuration
+1. GitHub repository settings で Pages を有効化
+2. Environment / Repository variable を追加
+	 - `API_BASE_URL`: Render API URL（例: `https://nk-calculator-api.onrender.com`）
+3. `main` ブランチに push
+4. GitHub Actions `Deploy Frontend to GitHub Pages` が実行される
 
-Frontend env:
+workflowでは `apps/frontend/index.html` の初期API URLを `API_BASE_URL` に置換してPagesへ配信する。
 
-- `VITE_API_BASE_URL` (or `NEXT_PUBLIC_API_BASE_URL`)
+## 3) Local smoke test
 
-Backend env:
+### Backend
 
-- `REQUEST_TIMEOUT_SECONDS`
-- `CACHE_TTL_SECONDS`
-- `ALLOWED_ORIGINS`
+```bash
+cd apps/backend
+/workspace/.venv/bin/pip install -r requirements.txt
+/workspace/.venv/bin/uvicorn app.main:app --reload --port 8000
+```
+
+### Frontend
+
+```bash
+cd apps/frontend
+/workspace/.venv/bin/python -m http.server 5173
+```
+
+ブラウザで `http://localhost:5173` を開いて実行。
 
 ## Security Notes
 
-- CORSはfrontend originのみに限定
-- 外部URLはドメイン許可リストで検証
-- レート制限とログ監視を有効化
+- 本番では `ALLOWED_ORIGINS` を `*` にしない
+- `race.netkeiba.com` 以外のURLはAPI側で拒否する
+- 連続実行対策として将来的にレート制限を追加する
