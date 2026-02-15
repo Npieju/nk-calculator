@@ -66,6 +66,7 @@ class NetkeibaScraper:
 
         odds: dict[str, Any] = {bet_type: [] for bet_type in BET_TYPES}
         odds_status: dict[str, Any] = {}
+        odds_updated_at: str | None = None
 
         for bet_type in BET_TYPES:
             source_url = self._build_odds_type_url(race_id, bet_type)
@@ -75,6 +76,8 @@ class NetkeibaScraper:
                     api_type = API_ODDS_TYPE_MAP.get(bet_type)
                     if api_type:
                         payload = self._fetch_jra_odds_payload(race_id, api_type, source_url)
+                        if odds_updated_at is None:
+                            odds_updated_at = self._extract_official_datetime(payload)
                         rows = self._extract_odds_rows_from_api_payload(payload or {}, bet_type, entries)
                 except Exception:
                     rows = []
@@ -86,10 +89,24 @@ class NetkeibaScraper:
             "race_id": race_id,
             "race_name": race_name,
             "race_date": race_date,
+            "odds_updated_at": odds_updated_at,
             "entries": entries,
             "odds": odds,
             "odds_status": odds_status,
         }
+
+    @staticmethod
+    def _extract_official_datetime(payload: dict[str, Any] | None) -> str | None:
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return None
+        value = data.get("official_datetime")
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
     def _build_odds_status(
         self,

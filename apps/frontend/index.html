@@ -352,6 +352,8 @@
             <div>race_id: ${escapeHtml(race.race_id)}</div>
             <div>race_name: ${escapeHtml(race.race_name)}</div>
             <div>race_date: ${escapeHtml(race.race_date)}</div>
+            <div>odds_updated_at: ${escapeHtml(race.odds_updated_at || "-")}</div>
+            <div>analyzed_at: ${escapeHtml(race.analyzed_at || "-")}</div>
           `;
 
           statusCollapsed = true;

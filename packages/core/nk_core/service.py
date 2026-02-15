@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from .predictor import build_comparisons
@@ -61,6 +62,8 @@ def analyze_race(race_url: str, excluded_horses: list[str] | None = None) -> dic
             "race_id": scraped.get("race_id"),
             "race_name": scraped.get("race_name"),
             "race_date": scraped.get("race_date"),
+            "odds_updated_at": scraped.get("odds_updated_at"),
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
         },
         "odds_status": scraped.get("odds_status", {}),
         "odds": scraped.get("odds", {}),
