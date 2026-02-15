@@ -28,14 +28,7 @@
   <body>
     <h1>nk-calculator</h1>
     <p class="muted">URL入力 → オッズ取得 → 比較1/2/3 を一気通貫で実行します。</p>
-
-    <div class="row">
-      <label>
-        API Base URL
-        <br />
-        <input id="apiBase" value="http://localhost:8000" />
-      </label>
-    </div>
+    <p class="muted">対応URL: netkeiba の出馬表ページ（`/race/shutuba.html?race_id=...`）のみ</p>
     <div class="row">
       <label>
         レースURL
@@ -63,6 +56,10 @@
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
       const tablesBox = document.getElementById("tables");
+      const API_BASE_URL =
+        window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+          ? "http://localhost:8000"
+          : "https://nk-calculator-api.onrender.com";
       const tableOrder = ["all", "c1", "c2", "c3"];
       const tableStates = {};
       let statusCollapsed = true;
@@ -240,7 +237,6 @@
       }
 
       async function runAnalyze() {
-        const apiBase = document.getElementById("apiBase").value.trim();
         const raceUrl = document.getElementById("raceUrl").value.trim();
         const excluded = document.getElementById("excluded").value
           .split(",")
@@ -252,7 +248,7 @@
         tablesBox.innerHTML = "";
 
         try {
-          const resp = await fetch(`${apiBase}/v1/analyze`, {
+          const resp = await fetch(`${API_BASE_URL}/v1/analyze`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ race_url: raceUrl, excluded_horses: excluded }),

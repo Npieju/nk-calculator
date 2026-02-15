@@ -51,8 +51,8 @@ def health() -> dict[str, str]:
 @app.post("/v1/analyze", response_model=AnalyzeResponse)
 def analyze(payload: AnalyzeRequest) -> dict:
     race_url = str(payload.race_url).strip()
-    if "race.netkeiba.com" not in race_url or "race_id=" not in race_url:
-        raise HTTPException(status_code=400, detail="race.netkeiba.com の race_id 付きURLを指定してください")
+    if "race.netkeiba.com/race/shutuba.html" not in race_url or "race_id=" not in race_url:
+        raise HTTPException(status_code=400, detail="対応URLは netkeiba の出馬表ページ（/race/shutuba.html?race_id=...）です")
     try:
         return analyze_race(race_url, excluded_horses=payload.excluded_horses)
     except ValueError as exc:
