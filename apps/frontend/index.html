@@ -24,6 +24,9 @@
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
+      .excluded-picker { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin-top: 6px; max-width: 480px; }
+      .excluded-item { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+      .excluded-item input { width: auto; padding: 0; }
       th.col-clip, td.col-clip {
         white-space: nowrap;
         overflow: hidden;
@@ -46,6 +49,7 @@
         .card { padding: 10px; }
         .card-head h3 { font-size: 16px; margin: 0; }
         th, td { font-size: 12px; padding: 5px 6px; }
+        .excluded-picker { grid-template-columns: repeat(6, minmax(0, 1fr)); }
       }
     </style>
   </head>
@@ -66,9 +70,9 @@
     </div>
     <div class="row">
       <label>
-        消し馬（馬番カンマ区切り）オッズ計算から除外します
+        消し馬（オッズ計算から除外）
         <br />
-        <input id="excluded" value="" />
+        <div id="excludedPicker" class="excluded-picker"></div>
       </label>
       <div style="align-self: end">
         <button id="runBtn">分析実行</button>
@@ -324,12 +328,23 @@
         statusBox.innerHTML = renderOddsStatus(window.lastOddsStatus);
       }
 
+      function initExcludedPicker() {
+        const picker = document.getElementById("excludedPicker");
+        if (!picker) return;
+        picker.innerHTML = Array.from({ length: 18 }, (_, idx) => {
+          const no = idx + 1;
+          return `<label class="excluded-item"><input type="checkbox" value="${no}" />${no}</label>`;
+        }).join("");
+      }
+
+      function getExcludedHorses() {
+        return Array.from(document.querySelectorAll("#excludedPicker input[type='checkbox']:checked"))
+          .map((el) => String(el.value));
+      }
+
       async function runAnalyze() {
         const raceUrl = document.getElementById("raceUrl").value.trim();
-        const excluded = document.getElementById("excluded").value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
+        const excluded = getExcludedHorses();
 
         metaBox.innerHTML = "実行中...";
         statusBox.innerHTML = "";
@@ -411,6 +426,7 @@
         }
       }
 
+      initExcludedPicker();
       runBtn.addEventListener("click", runAnalyze);
     </script>
   </body>
