@@ -85,17 +85,13 @@ def _collect_horse_flow_odds(
     return {horse_no: _synthetic_odds(odds_list) for horse_no, odds_list in data.items()}
 
 
-def _pair_key(a: str, b: str) -> tuple[str, str]:
-    return (a, b) if _horse_sort_key(a) <= _horse_sort_key(b) else (b, a)
-
-
 def _build_pair_compare(
     umaren: pd.DataFrame | None,
     umatan: pd.DataFrame | None,
     horse_name_map: dict[str, str],
     excluded: set[str],
 ) -> pd.DataFrame:
-    umaren_map: dict[tuple[str, str], float] = {}
+    umaren_dir_map: dict[tuple[str, str], float] = {}
     if umaren is not None and not umaren.empty and {"組み合わせ", "オッズ"}.issubset(set(umaren.columns)):
         for _, row in umaren.iterrows():
             nums = _combo_numbers(row.get("組み合わせ"))
@@ -103,7 +99,9 @@ def _build_pair_compare(
                 continue
             odd = _parse_odds_value(row.get("オッズ"))
             if odd is not None and odd > 0:
-                umaren_map[_pair_key(nums[0], nums[1])] = odd
+                a, b = nums[0], nums[1]
+                umaren_dir_map[(a, b)] = odd
+                umaren_dir_map[(b, a)] = odd
 
     umatan_dir_map: dict[tuple[str, str], float] = {}
     if umatan is not None and not umatan.empty and {"組み合わせ", "オッズ"}.issubset(set(umatan.columns)):
@@ -116,15 +114,13 @@ def _build_pair_compare(
                 umatan_dir_map[(nums[0], nums[1])] = odd
 
     pair_rows: list[dict[str, object]] = []
-    all_pairs = set(umaren_map.keys())
-    for a, b in list(umatan_dir_map.keys()):
-        all_pairs.add(_pair_key(a, b))
+    all_pairs = set(umaren_dir_map.keys()) | set(umatan_dir_map.keys())
 
     for a, b in sorted(all_pairs, key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]))):
         ab = umatan_dir_map.get((a, b))
         ba = umatan_dir_map.get((b, a))
         synth_umatan = _synthetic_odds([x for x in [ab, ba] if x is not None])
-        umaren_odd = umaren_map.get((a, b))
+        umaren_odd = umaren_dir_map.get((a, b))
         pair_rows.append(
             {
                 "馬番A": int(a) if a.isdigit() else a,
