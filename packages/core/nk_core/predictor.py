@@ -196,7 +196,10 @@ def build_comparisons(
     horse_name_map = {str(row["馬番"]): row["馬名"] for _, row in master.iterrows()}
 
     umatan_first = _collect_horse_flow_odds(frames.get("馬単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=0)
+    umatan_second = _collect_horse_flow_odds(frames.get("馬単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=1)
     sanrentan_first = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=0)
+    sanrentan_second = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=1)
+    sanrentan_third = _collect_horse_flow_odds(frames.get("三連単", pd.DataFrame()), horse_numbers, excluded, mode="position", position=2)
     umaren_flow = _collect_horse_flow_odds(frames.get("馬連", pd.DataFrame()), horse_numbers, excluded, mode="contains")
     wide_flow = _collect_horse_flow_odds(frames.get("ワイド", pd.DataFrame()), horse_numbers, excluded, mode="contains")
     sanrenpuku_flow = _collect_horse_flow_odds(frames.get("三連複", pd.DataFrame()), horse_numbers, excluded, mode="contains")
@@ -206,8 +209,11 @@ def build_comparisons(
     all_market_compare["馬連流し合成オッズ"] = all_market_compare["馬番"].astype(str).map(umaren_flow)
     all_market_compare["ワイド流し合成オッズ"] = all_market_compare["馬番"].astype(str).map(wide_flow)
     all_market_compare["馬単(1着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(umatan_first)
+    all_market_compare["馬単(2着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(umatan_second)
     all_market_compare["三連複流し合成オッズ"] = all_market_compare["馬番"].astype(str).map(sanrenpuku_flow)
     all_market_compare["三連単(1着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(sanrentan_first)
+    all_market_compare["三連単(2着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(sanrentan_second)
+    all_market_compare["三連単(3着流し)合成オッズ"] = all_market_compare["馬番"].astype(str).map(sanrentan_third)
     all_market_compare["馬番"] = pd.to_numeric(all_market_compare["馬番"], errors="coerce").astype("Int64")
 
     compare1 = master[["馬番", "馬名", "単勝オッズ"]].copy()
