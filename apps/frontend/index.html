@@ -31,7 +31,13 @@
       .excluded-picker { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin-top: 6px; max-width: 480px; }
       .excluded-item { display: flex; align-items: center; gap: 4px; font-size: 12px; }
       .excluded-item input { width: auto; padding: 0; }
-      th.col-clip, td.col-clip {
+      th.col-clip {
+        white-space: pre-line;
+        line-height: 1.15;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      td.col-clip {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -124,13 +130,13 @@
         place_odds: "複勝",
         quinella_flow_odds: "馬連",
         wide_flow_odds: "ワイド",
-        exacta_first_flow_odds: "A→全",
-        exacta_second_flow_odds: "全→A",
+        exacta_first_flow_odds: "馬単\nA→全",
+        exacta_second_flow_odds: "馬単\n全→A",
         trio_flow_odds: "三連複",
-        trifecta_single_head_flow_odds: "3単A=全=全",
-        trifecta_first_flow_odds: "A→全→全",
-        trifecta_second_flow_odds: "全→A→全",
-        trifecta_third_flow_odds: "全→全→A",
+        trifecta_single_head_flow_odds: "3単\nA=*=*",
+        trifecta_first_flow_odds: "3単\nA→*→*",
+        trifecta_second_flow_odds: "3単\n*→A→*",
+        trifecta_third_flow_odds: "3単\n*→*→A",
         spread: "差異率",
         horse_no_a: "馬番A",
         horse_name_a: "馬名A",
@@ -139,19 +145,19 @@
         horse_no_c: "馬番C",
         horse_name_c: "馬名C",
         quinella_odds: "馬連",
-        exacta_both_flow_odds: "馬単裏表",
-        trifecta_top2_both_any_third_odds: "A↔B→全",
-        trifecta_top13_both_any_second_odds: "AB→全→AB",
-        trifecta_bottom23_both_any_first_odds: "全→A↔B",
+        exacta_both_flow_odds: "馬単\n裏表",
+        trifecta_top2_both_any_third_odds: "3単\nA↔B→*",
+        trifecta_top13_both_any_second_odds: "3単\nAB→*→AB",
+        trifecta_bottom23_both_any_first_odds: "3単\n*→A↔B",
         exacta_odds: "馬単",
-        trifecta_third_all_flow_odds: "A→B→全",
-        trifecta_first_all_flow_odds: "全→A→B",
-        trifecta_second_all_flow_odds: "A→全→B",
+        trifecta_third_all_flow_odds: "3単\nA→B→*",
+        trifecta_first_all_flow_odds: "3単\n*→A→B",
+        trifecta_second_all_flow_odds: "3単\nA→*→B",
         wide_odds: "ワイド",
-        trio_two_head_flow_odds: "A=B=全",
-        trifecta_two_head_multi_odds: "3単マルチ",
+        trio_two_head_flow_odds: "3複\nA=B=*",
+        trifecta_two_head_multi_odds: "3単\nAB軸M",
         trio_odds: "三連複",
-        trifecta_three_head_box_odds: "3単ボックス",
+        trifecta_three_head_box_odds: "3単\nABC箱",
       };
 
       function escapeHtml(text) {
