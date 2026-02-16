@@ -397,6 +397,77 @@
           </label>`;
       }
 
+      function buildRowMergeKey(tableKey, row) {
+        if (tableKey === "c1") {
+          return String(row?.horse_no ?? "").trim();
+        }
+        if (tableKey === "c3" || tableKey === "c4") {
+          const a = String(row?.horse_no_a ?? "").trim();
+          const b = String(row?.horse_no_b ?? "").trim();
+          return `${a}|${b}`;
+        }
+        return "";
+      }
+
+      function getExtendedColumnsForTable(tableKey) {
+        if (tableKey === "c1") {
+          return ["exacta_second_flow_odds", "trifecta_second_flow_odds", "trifecta_third_flow_odds"];
+        }
+        if (tableKey === "c3") {
+          return ["trifecta_top13_both_any_second_odds", "trifecta_bottom23_both_any_first_odds"];
+        }
+        if (tableKey === "c4") {
+          return ["trifecta_first_all_flow_odds", "trifecta_second_all_flow_odds"];
+        }
+        return [];
+      }
+
+      function getExtendedStateForTable(tableKey) {
+        if (tableKey === "c1") return extendedStates.e1;
+        if (tableKey === "c3") return extendedStates.e3;
+        if (tableKey === "c4") return extendedStates.e4;
+        return null;
+      }
+
+      function mergeExtendedRowsIfNeeded(state, rows, columns) {
+        if (!showExtendedPatterns || !hasExtendedToggle(state.key)) {
+          return { mergedRows: rows, mergedColumns: columns };
+        }
+
+        const extState = getExtendedStateForTable(state.key);
+        const extRows = Array.isArray(extState?.rows) ? extState.rows : [];
+        if (!extRows.length) {
+          return {
+            mergedRows: rows,
+            mergedColumns: columns.filter((c) => c !== "spread"),
+          };
+        }
+
+        const extMap = new Map();
+        for (const extRow of extRows) {
+          const key = buildRowMergeKey(state.key, extRow);
+          if (!key) continue;
+          extMap.set(key, extRow);
+        }
+
+        const extraColumns = getExtendedColumnsForTable(state.key);
+        const mergedRows = rows.map((row) => {
+          const key = buildRowMergeKey(state.key, row);
+          const extRow = key ? extMap.get(key) : null;
+          const merged = { ...row };
+          for (const col of extraColumns) {
+            merged[col] = extRow?.[col] ?? null;
+          }
+          return merged;
+        });
+
+        const mergedColumns = columns
+          .filter((c) => c !== "spread")
+          .concat(extraColumns.filter((c) => !columns.includes(c)));
+
+        return { mergedRows, mergedColumns };
+      }
+
       function getDisplayValue(row, displayColumn) {
         const formatHorse = (horseNo, horseName) => {
           const noText = String(horseNo ?? "").trim();
@@ -439,27 +510,32 @@
           return `<div class="card"><div class="card-head"><h3>${escapeHtml(title)}</h3><div style="display:flex;align-items:center;gap:8px;">${extendedToggleControl}<button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div></div>${state.collapsed ? "" : '<p class="muted">データなし</p>'}</div>`;
         }
 
-        const columns = Object.keys(rows[0]);
+        const baseColumns = Object.keys(rows[0]);
+        const merged = mergeExtendedRowsIfNeeded(state, rows, baseColumns);
+        const sourceRows = merged.mergedRows;
+        const columns = merged.mergedColumns;
         const displayColumns = getDisplayColumns(columns);
         const sortableColumns = getSortableColumns(columns);
-        const globalFiltered = getGlobalFilteredRows(state.key, rows);
+        const effectiveSortBy = sortableColumns.includes(state.sortBy) ? state.sortBy : (sortableColumns[0] || "");
+
+        const globalFiltered = getGlobalFilteredRows(state.key, sourceRows);
         const secondFiltered = getSecondHorseFilteredRows(state.key, globalFiltered, state.secondHorseFilter);
         const filteredRows = getFilteredRows2(secondFiltered, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
         const dedupedRows = getDedupedDisplayRows(state.key, filteredRows);
-        const sortedRows = getSortedRows(dedupedRows, state.sortBy, state.sortOrder);
+        const sortedRows = getSortedRows(dedupedRows, effectiveSortBy, state.sortOrder);
         const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = sortableColumns
-          .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
+          .map((c) => `<option value="${escapeHtml(c)}" ${effectiveSortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
 
         const filterCandidates = state.filterColumn && columns.includes(state.filterColumn)
-          ? Array.from(new Set(rows.map((row) => String(row?.[state.filterColumn] ?? "")).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"))
+          ? Array.from(new Set(sourceRows.map((row) => String(row?.[state.filterColumn] ?? "")).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"))
           : [];
         const filterOptions = [`<option value="__all__" ${state.filterValue === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(filterCandidates.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
           .join("");
         const filterCandidates2 = state.filterColumn2 && columns.includes(state.filterColumn2)
-          ? Array.from(new Set(rows.map((row) => String(row?.[state.filterColumn2] ?? "")).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"))
+          ? Array.from(new Set(sourceRows.map((row) => String(row?.[state.filterColumn2] ?? "")).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"))
           : [];
         const filterOptions2 = [`<option value="__all__" ${state.filterValue2 === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(filterCandidates2.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue2 === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
@@ -573,55 +649,12 @@
           </div>`;
       }
 
-      function buildExtendedCard(state) {
-        const rows = Array.isArray(state.rows) ? state.rows : [];
-        let visibleRows = [...rows];
-        if (state.filterKey === "c3" || state.filterKey === "c4") {
-          visibleRows = getGlobalFilteredRows(state.filterKey, visibleRows);
-        }
-
-        if (!visibleRows.length) {
-          return `
-            <div class="card">
-              <div class="card-head"><h3>${escapeHtml(state.title)}</h3></div>
-              <p class="muted">データなし</p>
-            </div>`;
-        }
-
-        const columns = state.columns.filter((c) => c !== "spread");
-        const displayColumns = getDisplayColumns(columns);
-        const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
-        const tbody = visibleRows
-          .map((row) => `<tr>${displayColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
-          .join("");
-
-        return `
-          <div class="card">
-            <div class="card-head"><h3>${escapeHtml(state.title)}</h3></div>
-            <div class="scroll">
-              <table>
-                <thead>${thead}</thead>
-                <tbody>${tbody}</tbody>
-              </table>
-            </div>
-          </div>`;
-      }
-
       function renderTables() {
-        const extendedByBaseKey = {
-          c1: "e1",
-          c3: "e3",
-          c4: "e4",
-        };
         const htmlParts = [];
         for (const key of tableOrder) {
           const state = tableStates[key];
           if (!state) continue;
           htmlParts.push(buildTableCard(state));
-          const extendedKey = extendedByBaseKey[key];
-          if (showExtendedPatterns && extendedKey && extendedStates[extendedKey]) {
-            htmlParts.push(buildExtendedCard(extendedStates[extendedKey]));
-          }
         }
         tablesBox.innerHTML = htmlParts.join("");
       }
