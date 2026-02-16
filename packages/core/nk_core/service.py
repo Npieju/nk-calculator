@@ -50,6 +50,10 @@ COMPARE_COLUMN_MAP = {
     "馬名C": "horse_name_c",
     "三連複オッズ": "trio_odds",
     "三連単3頭ボックス合成オッズ": "trifecta_three_head_box_odds",
+    "三連単1-3着裏表2着全流し合成オッズ": "trifecta_top13_both_any_second_odds",
+    "三連単2-3着裏表1着全流し合成オッズ": "trifecta_bottom23_both_any_first_odds",
+    "三連単1着全流し合成オッズ": "trifecta_first_all_flow_odds",
+    "三連単2着全流し合成オッズ": "trifecta_second_all_flow_odds",
 }
 
 
