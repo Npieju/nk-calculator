@@ -95,20 +95,12 @@
 
     <div id="meta" class="card"></div>
     <div id="status" class="card"></div>
-    <div id="globalFilter" class="card" style="display: none;">
-      <div class="toolbar">
-        <span>絞り込み（1頭）</span>
-        <select id="globalHorseFilter"></select>
-      </div>
-    </div>
     <div id="tables"></div>
 
     <script>
       const runBtn = document.getElementById("runBtn");
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
-      const globalFilterBox = document.getElementById("globalFilter");
-      const globalHorseFilter = document.getElementById("globalHorseFilter");
       const tablesBox = document.getElementById("tables");
       const API_BASE_URL =
         window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
@@ -118,6 +110,7 @@
       const tableStates = {};
       let statusCollapsed = true;
       let selectedHorseFilter = "__all__";
+      let globalFilterNames = [];
       const COLUMN_LABELS_JA = {
         horse: "馬",
         horse_no: "馬番",
@@ -240,10 +233,10 @@
         if (!selectedHorseFilter || selectedHorseFilter === "__all__") {
           return [...rows];
         }
-        const selected = String(selectedHorseFilter);
-        if (tableKey === "all" || tableKey === "c1" || tableKey === "c2") {
-          return rows.filter((row) => String(row?.horse_name ?? "") === selected);
+        if (!["c3", "c4", "c5", "c6"].includes(tableKey)) {
+          return [...rows];
         }
+        const selected = String(selectedHorseFilter);
         if (tableKey === "c3" || tableKey === "c4" || tableKey === "c5") {
           return rows.filter((row) => String(row?.horse_name_a ?? "") === selected || String(row?.horse_name_b ?? "") === selected);
         }
@@ -262,6 +255,20 @@
           return current;
         }
         return current.filter((row) => String(row?.[filterColumn2] ?? "") === filterValue2);
+      }
+
+      function buildGlobalFilterCard() {
+        if (!globalFilterNames.length) return "";
+        const options = [`<option value="__all__" ${selectedHorseFilter === "__all__" ? "selected" : ""}>全表示</option>`]
+          .concat(globalFilterNames.map((name) => `<option value="${escapeHtml(name)}" ${selectedHorseFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`))
+          .join("");
+        return `
+          <div class="card">
+            <div class="toolbar">
+              <span>絞り込み（馬連系〜三連複系）</span>
+              <select onchange="window.changeGlobalHorseFilter(this.value)">${options}</select>
+            </div>
+          </div>`;
       }
 
       function getDedupedDisplayRows(tableKey, rows) {
@@ -495,17 +502,20 @@
       }
 
       function renderTables() {
-        tablesBox.innerHTML = tableOrder
-          .map((key) => tableStates[key])
-          .filter(Boolean)
-          .map((state) => buildTableCard(state))
-          .join("");
+        const htmlParts = [];
+        for (const key of tableOrder) {
+          const state = tableStates[key];
+          if (!state) continue;
+          if (key === "c3") {
+            htmlParts.push(buildGlobalFilterCard());
+          }
+          htmlParts.push(buildTableCard(state));
+        }
+        tablesBox.innerHTML = htmlParts.join("");
       }
 
       function updateGlobalHorseFilterOptions(comparisons) {
         const allRows = [
-          ...(comparisons.compare1 || []),
-          ...(comparisons.compare2 || []),
           ...(comparisons.compare3 || []),
           ...(comparisons.compare4 || []),
           ...(comparisons.compare5 || []),
@@ -538,12 +548,13 @@
         if (selectedHorseFilter === "__all__" && horse1Name) {
           selectedHorseFilter = horse1Name;
         }
-
-        globalHorseFilter.innerHTML = [`<option value="__all__">全表示</option>`]
-          .concat(names.map((name) => `<option value="${escapeHtml(name)}" ${selectedHorseFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`))
-          .join("");
-        globalFilterBox.style.display = names.length ? "block" : "none";
+        globalFilterNames = names;
       }
+
+      window.changeGlobalHorseFilter = (value) => {
+        selectedHorseFilter = String(value || "__all__");
+        renderTables();
+      };
 
       window.changeSortColumn = (key, column) => {
         if (!tableStates[key]) return;
@@ -769,10 +780,6 @@
       }
 
       initExcludedPicker();
-      globalHorseFilter.addEventListener("change", (event) => {
-        selectedHorseFilter = String(event.target?.value || "__all__");
-        renderTables();
-      });
       runBtn.addEventListener("click", runAnalyze);
     </script>
   </body>

@@ -49,9 +49,10 @@ def _add_spread_column(df: pd.DataFrame, odds_columns: list[str], column_name: s
         frame[column_name] = []
         return frame
     numeric = frame[odds_columns].apply(pd.to_numeric, errors="coerce")
-    max_values = numeric.max(axis=1)
-    min_values = numeric.min(axis=1)
-    ratio = (max_values / min_values.where(min_values > 0)) * 100
+    base = numeric[odds_columns[0]]
+    others = numeric[odds_columns[1:]] if len(odds_columns) > 1 else numeric[odds_columns]
+    max_others = others.max(axis=1)
+    ratio = (max_others / base.where(base > 0)) * 100
     frame[column_name] = ratio.round(4)
     return frame
 
