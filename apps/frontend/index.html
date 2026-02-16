@@ -469,6 +469,82 @@
         return { mergedRows, mergedColumns };
       }
 
+      function applyFocusedHorseDisplayIfNeeded(state, rows, columns) {
+        const selectedA = normalizeHorseName(selectedHorseFilter);
+        const hasSelectedA = selectedA && selectedA !== "__all__";
+        if (!hasSelectedA) {
+          return { displayRows: rows, displayColumns: columns };
+        }
+
+        if (["c3", "c5"].includes(state.key)) {
+          const mappedRows = rows.map((row) => {
+            const nameA = normalizeHorseName(row?.horse_name_a);
+            const nameB = normalizeHorseName(row?.horse_name_b);
+            if (nameA === selectedA) {
+              return { ...row };
+            }
+            if (nameB === selectedA) {
+              return {
+                ...row,
+                horse_no_b: row?.horse_no_a,
+                horse_name_b: row?.horse_name_a,
+              };
+            }
+            return { ...row };
+          });
+          const displayColumns = columns.filter((c) => c !== "horse_no_a" && c !== "horse_name_a");
+          return { displayRows: mappedRows, displayColumns };
+        }
+
+        if (state.key === "c4") {
+          const filteredRows = rows.filter((row) => normalizeHorseName(row?.horse_name_a) === selectedA);
+          const displayColumns = columns.filter((c) => c !== "horse_no_a" && c !== "horse_name_a");
+          return { displayRows: filteredRows, displayColumns };
+        }
+
+        if (state.key === "c6") {
+          const selectedB = normalizeHorseName(state.secondHorseFilter);
+          const hasSelectedB = selectedB && selectedB !== "__all__";
+          if (!hasSelectedB) {
+            return { displayRows: rows, displayColumns: columns };
+          }
+
+          const focusedRows = rows
+            .map((row) => {
+              const trio = [
+                { no: row?.horse_no_a, name: row?.horse_name_a, normalized: normalizeHorseName(row?.horse_name_a) },
+                { no: row?.horse_no_b, name: row?.horse_name_b, normalized: normalizeHorseName(row?.horse_name_b) },
+                { no: row?.horse_no_c, name: row?.horse_name_c, normalized: normalizeHorseName(row?.horse_name_c) },
+              ];
+
+              const hasA = trio.some((item) => item.normalized === selectedA);
+              const hasB = trio.some((item) => item.normalized === selectedB);
+              if (!hasA || !hasB) {
+                return null;
+              }
+
+              const third = trio.find((item) => item.normalized !== selectedA && item.normalized !== selectedB);
+              if (!third) {
+                return null;
+              }
+
+              return {
+                ...row,
+                horse_no_c: third.no,
+                horse_name_c: third.name,
+              };
+            })
+            .filter(Boolean);
+
+          const displayColumns = columns.filter(
+            (c) => c !== "horse_no_a" && c !== "horse_name_a" && c !== "horse_no_b" && c !== "horse_name_b"
+          );
+          return { displayRows: focusedRows, displayColumns };
+        }
+
+        return { displayRows: rows, displayColumns: columns };
+      }
+
       function getDisplayValue(row, displayColumn) {
         const formatHorse = (horseNo, horseName) => {
           const noText = String(horseNo ?? "").trim();
@@ -523,10 +599,16 @@
         const secondFiltered = getSecondHorseFilteredRows(state.key, globalFiltered, state.secondHorseFilter);
         const filteredRows = getFilteredRows2(secondFiltered, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
         const dedupedRows = getDedupedDisplayRows(state.key, filteredRows);
-        const sortedRows = getSortedRows(dedupedRows, effectiveSortBy, state.sortOrder);
-        const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
-        const options = sortableColumns
-          .map((c) => `<option value="${escapeHtml(c)}" ${effectiveSortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
+        const focused = applyFocusedHorseDisplayIfNeeded(state, dedupedRows, columns);
+        const focusedRows = focused.displayRows;
+        const focusedColumns = focused.displayColumns;
+        const focusedDisplayColumns = getDisplayColumns(focusedColumns);
+        const focusedSortableColumns = getSortableColumns(focusedColumns);
+        const focusedSortBy = focusedSortableColumns.includes(effectiveSortBy) ? effectiveSortBy : (focusedSortableColumns[0] || "");
+        const sortedRows = getSortedRows(focusedRows, focusedSortBy, state.sortOrder);
+        const thead = `<tr>${focusedDisplayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+        const options = focusedSortableColumns
+          .map((c) => `<option value="${escapeHtml(c)}" ${focusedSortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
 
         const filterCandidates = state.filterColumn && columns.includes(state.filterColumn)
@@ -545,8 +627,8 @@
         const secondHorseFilterOptions = buildSecondHorseFilterOptions(state.secondHorseFilter || "__all__");
 
         if (state.key === "all") {
-          const fixedColumns = ["horse", "win_odds"].filter((c) => displayColumns.includes(c));
-          const scrollColumns = displayColumns.filter((c) => !fixedColumns.includes(c));
+          const fixedColumns = ["horse", "win_odds"].filter((c) => focusedDisplayColumns.includes(c));
+          const scrollColumns = focusedDisplayColumns.filter((c) => !fixedColumns.includes(c));
 
           const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
           const scrollHead = `<tr>${scrollColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
@@ -591,14 +673,14 @@
         const tbody = sortedRows
           .map((row) => {
             const numeric = state.highlightColumns
-              .filter((col) => columns.includes(col))
+              .filter((col) => focusedColumns.includes(col))
               .map((col) => ({ col, value: toNumber(row[col]) }))
               .filter((item) => item.value !== null);
 
             const highCol = numeric.length ? numeric.reduce((a, b) => (a.value >= b.value ? a : b)).col : null;
             const lowCol = numeric.length ? numeric.reduce((a, b) => (a.value <= b.value ? a : b)).col : null;
 
-            const tds = displayColumns
+            const tds = focusedDisplayColumns
               .map((c) => {
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
