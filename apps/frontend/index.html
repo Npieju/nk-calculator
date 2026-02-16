@@ -448,7 +448,7 @@
         const secondHorseFilterOptions = buildSecondHorseFilterOptions(state.secondHorseFilter || "__all__");
 
         if (state.key === "all") {
-          const fixedColumns = ["horse"].filter((c) => displayColumns.includes(c));
+          const fixedColumns = ["horse", "win_odds"].filter((c) => displayColumns.includes(c));
           const scrollColumns = displayColumns.filter((c) => !fixedColumns.includes(c));
 
           const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
