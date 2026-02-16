@@ -249,6 +249,20 @@
         return [...rows];
       }
 
+      function getSecondHorseFilteredRows(tableKey, rows, secondHorseFilter) {
+        if (tableKey !== "c6") {
+          return [...rows];
+        }
+        if (!secondHorseFilter || secondHorseFilter === "__all__") {
+          return [...rows];
+        }
+        const selected = String(secondHorseFilter);
+        return rows.filter((row) => {
+          const names = [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c].map((v) => String(v ?? ""));
+          return names.includes(selected);
+        });
+      }
+
       function getFilteredRows2(rows, filterColumn, filterValue, filterColumn2, filterValue2) {
         let current = getFilteredRows(rows, filterColumn, filterValue);
         if (!filterColumn2 || !filterValue2 || filterValue2 === "__all__") {
@@ -258,17 +272,22 @@
       }
 
       function buildGlobalFilterCard() {
+        return "";
+      }
+
+      function buildSyncedHorseFilterOptions() {
         if (!globalFilterNames.length) return "";
-        const options = [`<option value="__all__" ${selectedHorseFilter === "__all__" ? "selected" : ""}>全表示</option>`]
+        return [`<option value="__all__" ${selectedHorseFilter === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(globalFilterNames.map((name) => `<option value="${escapeHtml(name)}" ${selectedHorseFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`))
           .join("");
-        return `
-          <div class="card">
-            <div class="toolbar">
-              <span>絞り込み（馬連系〜三連複系）</span>
-              <select onchange="window.changeGlobalHorseFilter(this.value)">${options}</select>
-            </div>
-          </div>`;
+      }
+
+      function buildSecondHorseFilterOptions(secondHorseFilter) {
+        if (!globalFilterNames.length) return "";
+        const candidates = globalFilterNames.filter((name) => name !== selectedHorseFilter);
+        return [`<option value="__all__" ${secondHorseFilter === "__all__" ? "selected" : ""}>全表示</option>`]
+          .concat(candidates.map((name) => `<option value="${escapeHtml(name)}" ${secondHorseFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`))
+          .join("");
       }
 
       function getDedupedDisplayRows(tableKey, rows) {
@@ -382,7 +401,8 @@
         const displayColumns = getDisplayColumns(columns);
         const sortableColumns = getSortableColumns(columns);
         const globalFiltered = getGlobalFilteredRows(state.key, rows);
-        const filteredRows = getFilteredRows2(globalFiltered, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
+        const secondFiltered = getSecondHorseFilteredRows(state.key, globalFiltered, state.secondHorseFilter);
+        const filteredRows = getFilteredRows2(secondFiltered, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
         const dedupedRows = getDedupedDisplayRows(state.key, filteredRows);
         const sortedRows = getSortedRows(dedupedRows, state.sortBy, state.sortOrder);
         const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
@@ -402,6 +422,8 @@
         const filterOptions2 = [`<option value="__all__" ${state.filterValue2 === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(filterCandidates2.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue2 === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
           .join("");
+        const syncedFilterOptions = buildSyncedHorseFilterOptions();
+        const secondHorseFilterOptions = buildSecondHorseFilterOptions(state.secondHorseFilter || "__all__");
 
         if (state.key === "all") {
           const fixedColumns = ["horse"].filter((c) => displayColumns.includes(c));
@@ -482,6 +504,14 @@
               <span>ソート列</span>
               <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
               <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+              ${["c3", "c4", "c5", "c6"].includes(state.key) ? `
+              <span>絞り込み（共通）</span>
+              <select onchange="window.changeGlobalHorseFilter(this.value)">${syncedFilterOptions}</select>
+              ` : ""}
+              ${state.key === "c6" ? `
+              <span>絞り込み2（三連複系）</span>
+              <select onchange="window.changeSecondHorseFilter('${escapeHtml(state.key)}', this.value)">${secondHorseFilterOptions}</select>
+              ` : ""}
               ${state.filterColumn ? `
               <span>絞り込み</span>
               <select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>
@@ -506,9 +536,6 @@
         for (const key of tableOrder) {
           const state = tableStates[key];
           if (!state) continue;
-          if (key === "c3") {
-            htmlParts.push(buildGlobalFilterCard());
-          }
           htmlParts.push(buildTableCard(state));
         }
         tablesBox.innerHTML = htmlParts.join("");
@@ -553,6 +580,12 @@
 
       window.changeGlobalHorseFilter = (value) => {
         selectedHorseFilter = String(value || "__all__");
+        renderTables();
+      };
+
+      window.changeSecondHorseFilter = (key, value) => {
+        if (!tableStates[key]) return;
+        tableStates[key].secondHorseFilter = String(value || "__all__");
         renderTables();
       };
 
@@ -730,6 +763,7 @@
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
+            secondHorseFilter: "__all__",
           };
           tableStates.c4 = {
             key: "c4",
@@ -743,6 +777,7 @@
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
+            secondHorseFilter: "__all__",
           };
           tableStates.c5 = {
             key: "c5",
@@ -756,6 +791,7 @@
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
+            secondHorseFilter: "__all__",
           };
           tableStates.c6 = {
             key: "c6",
@@ -769,6 +805,7 @@
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
+            secondHorseFilter: "__all__",
           };
 
           updateGlobalHorseFilterOptions(comparisons);
