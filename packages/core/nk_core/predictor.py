@@ -6,6 +6,15 @@ import pandas as pd
 BET_TYPES = ["単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "三連複", "三連単"]
 
 
+def _normalize_horse_no(value: object) -> str:
+    text = str(value).strip()
+    if not text:
+        return ""
+    if text.isdigit():
+        return str(int(text))
+    return text
+
+
 def _parse_odds_value(value: object) -> float | None:
     if value is None:
         return None
@@ -30,7 +39,7 @@ def _parse_odds_value(value: object) -> float | None:
 
 def _combo_numbers(combo: object) -> list[str]:
     text = str(combo).strip()
-    return [p.strip() for p in text.split("-") if p.strip()] if text else []
+    return [_normalize_horse_no(p) for p in text.split("-") if _normalize_horse_no(p)] if text else []
 
 
 def _synthetic_odds(odds_list: list[float]) -> float | None:
@@ -456,12 +465,12 @@ def _build_horse_master(entries: list[dict[str, object]], tansho_frame: pd.DataF
     rows: list[dict[str, object]] = []
     if not tansho_frame.empty and {"馬番", "馬名"}.issubset(set(tansho_frame.columns)):
         for _, row in tansho_frame.iterrows():
-            horse_no = str(row.get("馬番", "")).strip()
+            horse_no = _normalize_horse_no(row.get("馬番", ""))
             if horse_no and horse_no not in excluded:
                 rows.append({"馬番": horse_no, "馬名": str(row.get("馬名", "")).strip()})
     else:
         for row in entries:
-            horse_no = str(row.get("馬番", row.get("col_2", ""))).strip()
+            horse_no = _normalize_horse_no(row.get("馬番", row.get("col_2", "")))
             horse_name = str(row.get("馬名", row.get("col_4", ""))).strip()
             if horse_no and horse_name and horse_no not in excluded:
                 rows.append({"馬番": horse_no, "馬名": horse_name})
@@ -479,7 +488,7 @@ def build_comparisons(
     entries: list[dict[str, object]],
     excluded_horses: list[str] | None = None,
 ) -> dict[str, list[dict[str, object]]]:
-    excluded = {str(x).strip() for x in (excluded_horses or []) if str(x).strip()}
+    excluded = {_normalize_horse_no(x) for x in (excluded_horses or []) if _normalize_horse_no(x)}
 
     frames = {bet_type: pd.DataFrame(odds.get(bet_type, [])) for bet_type in BET_TYPES}
     tansho = frames.get("単勝", pd.DataFrame())
@@ -488,14 +497,14 @@ def build_comparisons(
     tansho_map: dict[str, float | None] = {}
     if not tansho.empty and {"馬番", "オッズ"}.issubset(set(tansho.columns)):
         for _, row in tansho.iterrows():
-            horse_no = str(row.get("馬番", "")).strip()
+            horse_no = _normalize_horse_no(row.get("馬番", ""))
             if horse_no:
                 tansho_map[horse_no] = _parse_odds_value(row.get("オッズ"))
 
     fukusho_map: dict[str, float | None] = {}
     if not fukusho.empty and {"馬番", "オッズ"}.issubset(set(fukusho.columns)):
         for _, row in fukusho.iterrows():
-            horse_no = str(row.get("馬番", "")).strip()
+            horse_no = _normalize_horse_no(row.get("馬番", ""))
             if horse_no and horse_no not in excluded:
                 fukusho_map[horse_no] = _parse_odds_value(row.get("オッズ"))
 
