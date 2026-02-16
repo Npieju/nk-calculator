@@ -706,19 +706,19 @@
               <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
               <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
               ${["c3", "c4", "c5", "c6"].includes(state.key) ? `
-              <span>絞り込み（共通）</span>
+              <span>馬A（共通）</span>
               <select onchange="window.changeGlobalHorseFilter(this.value)">${syncedFilterOptions}</select>
               ` : ""}
               ${state.key === "c6" ? `
-              <span>絞り込み2（三連複系）</span>
+              <span>馬B（三連複系）</span>
               <select onchange="window.changeSecondHorseFilter('${escapeHtml(state.key)}', this.value)">${secondHorseFilterOptions}</select>
               ` : ""}
               ${state.filterColumn ? `
-              <span>絞り込み</span>
+              <span>馬A</span>
               <select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>
               ` : ""}
               ${state.filterColumn2 ? `
-              <span>絞り込み2</span>
+              <span>馬B</span>
               <select onchange="window.changeFilterValue2('${escapeHtml(state.key)}', this.value)">${filterOptions2}</select>
               ` : ""}
             </div>
