@@ -28,8 +28,6 @@
       .all-fixed { flex: 0 0 auto; background: #fff; border-right: 1px solid #ddd; }
       .all-fixed table, .all-scroll table { margin-top: 0; }
       .all-scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; width: 100%; }
-      .ext-grid { display: flex; gap: 12px; flex-wrap: wrap; }
-      .ext-card { flex: 1 1 360px; min-width: 320px; }
       .excluded-picker { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin-top: 6px; max-width: 480px; }
       .excluded-item { display: flex; align-items: center; gap: 4px; font-size: 12px; }
       .excluded-item input { width: auto; padding: 0; }
@@ -89,10 +87,6 @@
       <label style="width: auto; max-width: none; align-self: end; font-size: 13px;">
         <input id="forceRefresh" type="checkbox" style="width: auto; margin-right: 6px;" />
         最新取得（キャッシュ無視）
-      </label>
-      <label style="width: auto; max-width: none; align-self: end; font-size: 13px;">
-        <input id="showExtendedPatterns" type="checkbox" style="width: auto; margin-right: 6px;" />
-        拡張パターン
       </label>
       <div style="align-self: end">
         <button id="runBtn">分析実行</button>
@@ -390,6 +384,19 @@
         return out;
       }
 
+      function hasExtendedToggle(stateKey) {
+        return ["c1", "c3", "c4"].includes(stateKey);
+      }
+
+      function buildExtendedToggleControl(stateKey) {
+        if (!hasExtendedToggle(stateKey)) return "";
+        return `
+          <label style="font-size: 13px; white-space: nowrap;">
+            <input type="checkbox" style="width: auto; margin-right: 6px;" ${showExtendedPatterns ? "checked" : ""} onchange="window.changeExtendedPatterns(this.checked)" />
+            拡張パターン
+          </label>`;
+      }
+
       function getDisplayValue(row, displayColumn) {
         const formatHorse = (horseNo, horseName) => {
           const noText = String(horseNo ?? "").trim();
@@ -427,8 +434,9 @@
       function buildTableCard(state) {
         const title = state.title;
         const rows = state.rows;
+        const extendedToggleControl = buildExtendedToggleControl(state.key);
         if (!Array.isArray(rows) || rows.length === 0) {
-          return `<div class="card"><div class="card-head"><h3>${escapeHtml(title)}</h3><button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div>${state.collapsed ? "" : '<p class="muted">データなし</p>'}</div>`;
+          return `<div class="card"><div class="card-head"><h3>${escapeHtml(title)}</h3><div style="display:flex;align-items:center;gap:8px;">${extendedToggleControl}<button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div></div>${state.collapsed ? "" : '<p class="muted">データなし</p>'}</div>`;
         }
 
         const columns = Object.keys(rows[0]);
@@ -477,7 +485,7 @@
             <div class="card">
               <div class="card-head">
                 <h3>${escapeHtml(title)}</h3>
-                <button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button>
+                <div style="display:flex;align-items:center;gap:8px;">${extendedToggleControl}<button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div>
               </div>
               ${state.collapsed ? "" : `
               <div class="toolbar">
@@ -531,7 +539,7 @@
           <div class="card">
             <div class="card-head">
               <h3>${escapeHtml(title)}</h3>
-              <button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button>
+              <div style="display:flex;align-items:center;gap:8px;">${extendedToggleControl}<button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div>
             </div>
             ${state.collapsed ? "" : `
             <div class="toolbar">
@@ -574,7 +582,7 @@
 
         if (!visibleRows.length) {
           return `
-            <div class="card ext-card">
+            <div class="card">
               <div class="card-head"><h3>${escapeHtml(state.title)}</h3></div>
               <p class="muted">データなし</p>
             </div>`;
@@ -588,7 +596,7 @@
           .join("");
 
         return `
-          <div class="card ext-card">
+          <div class="card">
             <div class="card-head"><h3>${escapeHtml(state.title)}</h3></div>
             <div class="scroll">
               <table>
@@ -599,32 +607,22 @@
           </div>`;
       }
 
-      function buildExtendedPatternsSection() {
-        if (!showExtendedPatterns) return "";
-        const cards = [
-          extendedStates.e1 ? buildExtendedCard(extendedStates.e1) : "",
-          extendedStates.e3 ? buildExtendedCard(extendedStates.e3) : "",
-          extendedStates.e4 ? buildExtendedCard(extendedStates.e4) : "",
-        ].filter(Boolean).join("");
-
-        if (!cards) return "";
-        return `
-          <div class="card">
-            <div class="card-head">
-              <h3>拡張パターン（非等価・差異率なし）</h3>
-            </div>
-            <div class="ext-grid">${cards}</div>
-          </div>`;
-      }
-
       function renderTables() {
+        const extendedByBaseKey = {
+          c1: "e1",
+          c3: "e3",
+          c4: "e4",
+        };
         const htmlParts = [];
         for (const key of tableOrder) {
           const state = tableStates[key];
           if (!state) continue;
           htmlParts.push(buildTableCard(state));
+          const extendedKey = extendedByBaseKey[key];
+          if (showExtendedPatterns && extendedKey && extendedStates[extendedKey]) {
+            htmlParts.push(buildExtendedCard(extendedStates[extendedKey]));
+          }
         }
-        htmlParts.push(buildExtendedPatternsSection());
         tablesBox.innerHTML = htmlParts.join("");
       }
 
@@ -682,6 +680,11 @@
       window.changeSecondHorseFilter = (key, value) => {
         if (!tableStates[key]) return;
         tableStates[key].secondHorseFilter = String(value || "__all__");
+        renderTables();
+      };
+
+      window.changeExtendedPatterns = (checked) => {
+        showExtendedPatterns = !!checked;
         renderTables();
       };
 
@@ -937,14 +940,6 @@
       }
 
       initExcludedPicker();
-      const showExtendedPatternsInput = document.getElementById("showExtendedPatterns");
-      if (showExtendedPatternsInput) {
-        showExtendedPatterns = !!showExtendedPatternsInput.checked;
-        showExtendedPatternsInput.addEventListener("change", () => {
-          showExtendedPatterns = !!showExtendedPatternsInput.checked;
-          renderTables();
-        });
-      }
       runBtn.addEventListener("click", runAnalyze);
     </script>
   </body>
