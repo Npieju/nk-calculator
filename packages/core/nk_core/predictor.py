@@ -322,13 +322,16 @@ def _build_wide_compare(
     horses: list[str],
     excluded: set[str],
 ) -> pd.DataFrame:
+    def pair_key(x: str, y: str) -> tuple[str, str]:
+        return tuple(sorted((x, y), key=_horse_sort_key))
+
     wide_map: dict[tuple[str, str], float] = {}
     if wide is not None and not wide.empty and {"組み合わせ", "オッズ"}.issubset(set(wide.columns)):
         for _, row in wide.iterrows():
             nums = _combo_numbers(row.get("組み合わせ"))
             if len(nums) != 2 or any(n in excluded for n in nums):
                 continue
-            key = tuple(sorted(nums))
+            key = pair_key(nums[0], nums[1])
             if key in wide_map:
                 continue
             odd = _parse_odds_value(row.get("オッズ"))
@@ -350,7 +353,7 @@ def _build_wide_compare(
             if odd is None or odd <= 0:
                 continue
             a, b, c = trio_key
-            for pair in [tuple(sorted((a, b))), tuple(sorted((a, c))), tuple(sorted((b, c)))]:
+            for pair in [pair_key(a, b), pair_key(a, c), pair_key(b, c)]:
                 trio_axis_map.setdefault(pair, []).append(odd)
 
     trifecta_multi_map: dict[tuple[str, str], list[float]] = {}
@@ -363,22 +366,23 @@ def _build_wide_compare(
             if odd is None or odd <= 0:
                 continue
             a, b, c = nums
-            for pair in [tuple(sorted((a, b))), tuple(sorted((a, c))), tuple(sorted((b, c)))]:
+            for pair in [pair_key(a, b), pair_key(a, c), pair_key(b, c)]:
                 trifecta_multi_map.setdefault(pair, []).append(odd)
 
     rows: list[dict[str, object]] = []
     for idx_a in range(len(horses)):
         for idx_b in range(idx_a + 1, len(horses)):
             a, b = horses[idx_a], horses[idx_b]
-            trio_synth = _synthetic_odds(trio_axis_map.get((a, b), []))
-            trifecta_synth = _synthetic_odds(trifecta_multi_map.get((a, b), []))
+            key = pair_key(a, b)
+            trio_synth = _synthetic_odds(trio_axis_map.get(key, []))
+            trifecta_synth = _synthetic_odds(trifecta_multi_map.get(key, []))
             rows.append(
                 {
                     "馬番A": int(a) if a.isdigit() else a,
                     "馬名A": horse_name_map.get(a, ""),
                     "馬番B": int(b) if b.isdigit() else b,
                     "馬名B": horse_name_map.get(b, ""),
-                    "ワイドオッズ": round(wide_map.get((a, b)), 4) if wide_map.get((a, b)) is not None else None,
+                    "ワイドオッズ": round(wide_map.get(key), 4) if wide_map.get(key) is not None else None,
                     "三連複2頭軸流し合成オッズ": round(trio_synth, 4) if trio_synth is not None else None,
                     "三連単2頭軸マルチ合成オッズ": round(trifecta_synth, 4) if trifecta_synth is not None else None,
                 }
