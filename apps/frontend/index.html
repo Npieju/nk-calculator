@@ -237,6 +237,15 @@
           return [...rows];
         }
         const selected = String(selectedHorseFilter);
+        const tableNames = new Set(
+          rows
+            .flatMap((row) => [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c])
+            .map((v) => String(v ?? "").trim())
+            .filter(Boolean)
+        );
+        if (!tableNames.has(selected)) {
+          return [...rows];
+        }
         if (tableKey === "c3" || tableKey === "c4" || tableKey === "c5") {
           return rows.filter((row) => String(row?.horse_name_a ?? "") === selected || String(row?.horse_name_b ?? "") === selected);
         }
@@ -257,6 +266,15 @@
           return [...rows];
         }
         const selected = String(secondHorseFilter);
+        const tableNames = new Set(
+          rows
+            .flatMap((row) => [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c])
+            .map((v) => String(v ?? "").trim())
+            .filter(Boolean)
+        );
+        if (!tableNames.has(selected)) {
+          return [...rows];
+        }
         return rows.filter((row) => {
           const names = [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c].map((v) => String(v ?? ""));
           return names.includes(selected);
@@ -572,10 +590,19 @@
           return "";
         };
         const horse1Name = findHorse1Name();
-        if (selectedHorseFilter === "__all__" && horse1Name) {
-          selectedHorseFilter = horse1Name;
+        const hasSelected = selectedHorseFilter !== "__all__" && names.includes(selectedHorseFilter);
+        if (!hasSelected) {
+          selectedHorseFilter = horse1Name && names.includes(horse1Name) ? horse1Name : "__all__";
         }
         globalFilterNames = names;
+
+        if (tableStates.c6) {
+          const second = String(tableStates.c6.secondHorseFilter || "__all__");
+          const validSeconds = names.filter((name) => name !== selectedHorseFilter);
+          if (second !== "__all__" && !validSeconds.includes(second)) {
+            tableStates.c6.secondHorseFilter = "__all__";
+          }
+        }
       }
 
       window.changeGlobalHorseFilter = (value) => {
