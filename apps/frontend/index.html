@@ -658,6 +658,33 @@
           htmlParts.push(buildTableCard(state));
         }
         tablesBox.innerHTML = htmlParts.join("");
+        syncAllSplitRowHeights();
+      }
+
+      function syncAllSplitRowHeights() {
+        const wraps = tablesBox.querySelectorAll(".all-split-wrap");
+        for (const wrap of wraps) {
+          const fixedHeadRows = wrap.querySelectorAll(".all-fixed thead tr");
+          const scrollHeadRows = wrap.querySelectorAll(".all-scroll thead tr");
+          const fixedBodyRows = wrap.querySelectorAll(".all-fixed tbody tr");
+          const scrollBodyRows = wrap.querySelectorAll(".all-scroll tbody tr");
+
+          const syncPairRows = (leftRows, rightRows) => {
+            const count = Math.min(leftRows.length, rightRows.length);
+            for (let index = 0; index < count; index++) {
+              const left = leftRows[index];
+              const right = rightRows[index];
+              left.style.height = "";
+              right.style.height = "";
+              const maxHeight = Math.max(left.offsetHeight, right.offsetHeight);
+              left.style.height = `${maxHeight}px`;
+              right.style.height = `${maxHeight}px`;
+            }
+          };
+
+          syncPairRows(fixedHeadRows, scrollHeadRows);
+          syncPairRows(fixedBodyRows, scrollBodyRows);
+        }
       }
 
       function updateGlobalHorseFilterOptions(comparisons) {
@@ -968,6 +995,9 @@
       }
 
       initExcludedPicker();
+      window.addEventListener("resize", () => {
+        syncAllSplitRowHeights();
+      });
       runBtn.addEventListener("click", runAnalyze);
     </script>
   </body>
