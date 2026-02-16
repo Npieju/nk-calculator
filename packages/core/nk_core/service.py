@@ -31,7 +31,6 @@ COMPARE_COLUMN_MAP = {
     "三連単(1着流し)合成オッズ": "trifecta_first_flow_odds",
     "三連単(2着流し)合成オッズ": "trifecta_second_flow_odds",
     "三連単(3着流し)合成オッズ": "trifecta_third_flow_odds",
-    "三連単(2,3着流し)合成オッズ": "trifecta_second_third_flow_odds",
     "差異率": "spread",
     "差異幅": "spread",
     "馬番A": "horse_no_a",
