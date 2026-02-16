@@ -54,7 +54,11 @@ def analyze(payload: AnalyzeRequest) -> dict:
     if "race.netkeiba.com/race/shutuba.html" not in race_url or "race_id=" not in race_url:
         raise HTTPException(status_code=400, detail="対応URLは netkeiba の出馬表ページ（/race/shutuba.html?race_id=...）です")
     try:
-        return analyze_race(race_url, excluded_horses=payload.excluded_horses)
+        return analyze_race(
+            race_url,
+            excluded_horses=payload.excluded_horses,
+            force_refresh=payload.force_refresh,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:

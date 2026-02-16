@@ -84,6 +84,10 @@
         <br />
         <div id="excludedPicker" class="excluded-picker"></div>
       </label>
+      <label style="width: auto; max-width: none; align-self: end; font-size: 13px;">
+        <input id="forceRefresh" type="checkbox" style="width: auto; margin-right: 6px;" />
+        最新取得（キャッシュ無視）
+      </label>
       <div style="align-self: end">
         <button id="runBtn">分析実行</button>
       </div>
@@ -469,9 +473,17 @@
           .map((el) => String(el.value));
       }
 
+      function formatDateTimeText(value) {
+        if (!value) return "-";
+        const date = new Date(String(value));
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleString("ja-JP", { hour12: false });
+      }
+
       async function runAnalyze() {
         const raceUrl = document.getElementById("raceUrl").value.trim();
         const excluded = getExcludedHorses();
+        const forceRefresh = document.getElementById("forceRefresh")?.checked || false;
 
         metaBox.innerHTML = "実行中...";
         statusBox.innerHTML = "";
@@ -481,7 +493,7 @@
           const resp = await fetch(`${API_BASE_URL}/v1/analyze`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ race_url: raceUrl, excluded_horses: excluded }),
+            body: JSON.stringify({ race_url: raceUrl, excluded_horses: excluded, force_refresh: forceRefresh }),
           });
           const data = await resp.json();
           if (!resp.ok) {
@@ -489,13 +501,23 @@
           }
 
           const race = data.race || {};
+          const oddsTimestamp = race.odds_updated_at || race.source_fetched_at || "-";
+          const cacheText = race.cache_hit
+            ? `キャッシュ利用（保存: ${formatDateTimeText(race.cache_stored_at)} / 経過: ${escapeHtml(race.cache_age_seconds)}秒）`
+            : "最新取得（スクレイプ実行）";
+          const refreshText = race.is_past_race
+            ? "過去レースのため通常は最新取得不要"
+            : "最新確認が必要な場合は「最新取得」を利用";
           metaBox.innerHTML = `
             <h3>レース情報</h3>
             <div>race_id: ${escapeHtml(race.race_id)}</div>
             <div>race_name: ${escapeHtml(race.race_name)}</div>
             <div>race_date: ${escapeHtml(race.race_date)}</div>
-            <div>odds_updated_at: ${escapeHtml(race.odds_updated_at || "-")}</div>
-            <div>analyzed_at: ${escapeHtml(race.analyzed_at || "-")}</div>
+            <div>オッズ時点: ${escapeHtml(formatDateTimeText(oddsTimestamp))}</div>
+            <div>データ取得元: ${escapeHtml(cacheText)}</div>
+            <div>取得実行時刻: ${escapeHtml(formatDateTimeText(race.source_fetched_at || race.analyzed_at))}</div>
+            <div>更新目安: ${escapeHtml(refreshText)}</div>
+            <div>analyzed_at: ${escapeHtml(formatDateTimeText(race.analyzed_at || "-"))}</div>
           `;
 
           statusCollapsed = true;
