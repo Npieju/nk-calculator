@@ -264,6 +264,36 @@
         return current.filter((row) => String(row?.[filterColumn2] ?? "") === filterValue2);
       }
 
+      function getDedupedDisplayRows(tableKey, rows) {
+        const toText = (value) => String(value ?? "").trim();
+        const seen = new Set();
+        const out = [];
+
+        for (const row of rows) {
+          let key = "";
+          if (tableKey === "c3" || tableKey === "c5") {
+            const a = toText(row?.horse_no_a) || toText(row?.horse_name_a);
+            const b = toText(row?.horse_no_b) || toText(row?.horse_name_b);
+            key = [a, b].sort().join("|");
+          } else if (tableKey === "c6") {
+            const a = toText(row?.horse_no_a) || toText(row?.horse_name_a);
+            const b = toText(row?.horse_no_b) || toText(row?.horse_name_b);
+            const c = toText(row?.horse_no_c) || toText(row?.horse_name_c);
+            key = [a, b, c].sort().join("|");
+          } else {
+            out.push(row);
+            continue;
+          }
+
+          if (!key || seen.has(key)) {
+            continue;
+          }
+          seen.add(key);
+          out.push(row);
+        }
+        return out;
+      }
+
       function getDisplayColumns(columns) {
         const out = [];
         for (const c of columns) {
@@ -346,7 +376,8 @@
         const sortableColumns = getSortableColumns(columns);
         const globalFiltered = getGlobalFilteredRows(state.key, rows);
         const filteredRows = getFilteredRows2(globalFiltered, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
-        const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
+        const dedupedRows = getDedupedDisplayRows(state.key, filteredRows);
+        const sortedRows = getSortedRows(dedupedRows, state.sortBy, state.sortOrder);
         const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = sortableColumns
           .map((c) => `<option value="${escapeHtml(c)}" ${state.sortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
