@@ -318,6 +318,7 @@ def _build_wide_compare(
     sanrenpuku: pd.DataFrame | None,
     sanrentan: pd.DataFrame | None,
     horse_name_map: dict[str, str],
+    horses: list[str],
     excluded: set[str],
 ) -> pd.DataFrame:
     wide_map: dict[tuple[str, str], float] = {}
@@ -364,22 +365,23 @@ def _build_wide_compare(
             for pair in [tuple(sorted((a, b))), tuple(sorted((a, c))), tuple(sorted((b, c)))]:
                 trifecta_multi_map.setdefault(pair, []).append(odd)
 
-    pair_keys = set(wide_map.keys()) | set(trio_axis_map.keys()) | set(trifecta_multi_map.keys())
     rows: list[dict[str, object]] = []
-    for a, b in sorted(pair_keys, key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]))):
-        trio_synth = _synthetic_odds(trio_axis_map.get((a, b), []))
-        trifecta_synth = _synthetic_odds(trifecta_multi_map.get((a, b), []))
-        rows.append(
-            {
-                "馬番A": int(a) if a.isdigit() else a,
-                "馬名A": horse_name_map.get(a, ""),
-                "馬番B": int(b) if b.isdigit() else b,
-                "馬名B": horse_name_map.get(b, ""),
-                "ワイドオッズ": round(wide_map.get((a, b)), 4) if wide_map.get((a, b)) is not None else None,
-                "三連複2頭軸流し合成オッズ": round(trio_synth, 4) if trio_synth is not None else None,
-                "三連単2頭軸マルチ合成オッズ": round(trifecta_synth, 4) if trifecta_synth is not None else None,
-            }
-        )
+    for idx_a in range(len(horses)):
+        for idx_b in range(idx_a + 1, len(horses)):
+            a, b = horses[idx_a], horses[idx_b]
+            trio_synth = _synthetic_odds(trio_axis_map.get((a, b), []))
+            trifecta_synth = _synthetic_odds(trifecta_multi_map.get((a, b), []))
+            rows.append(
+                {
+                    "馬番A": int(a) if a.isdigit() else a,
+                    "馬名A": horse_name_map.get(a, ""),
+                    "馬番B": int(b) if b.isdigit() else b,
+                    "馬名B": horse_name_map.get(b, ""),
+                    "ワイドオッズ": round(wide_map.get((a, b)), 4) if wide_map.get((a, b)) is not None else None,
+                    "三連複2頭軸流し合成オッズ": round(trio_synth, 4) if trio_synth is not None else None,
+                    "三連単2頭軸マルチ合成オッズ": round(trifecta_synth, 4) if trifecta_synth is not None else None,
+                }
+            )
 
     frame = pd.DataFrame(rows)
     if frame.empty:
@@ -391,6 +393,7 @@ def _build_trio_compare(
     sanrenpuku: pd.DataFrame | None,
     sanrentan: pd.DataFrame | None,
     horse_name_map: dict[str, str],
+    horses: list[str],
     excluded: set[str],
 ) -> pd.DataFrame:
     trio_map: dict[tuple[str, str, str], float] = {}
@@ -418,22 +421,25 @@ def _build_trio_compare(
             key = tuple(sorted(nums))
             trifecta_box_map.setdefault(key, []).append(odd)
 
-    trio_keys = set(trio_map.keys()) | set(trifecta_box_map.keys())
     rows: list[dict[str, object]] = []
-    for a, b, c in sorted(trio_keys, key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]), _horse_sort_key(x[2]))):
-        trifecta_box = _synthetic_odds(trifecta_box_map.get((a, b, c), []))
-        rows.append(
-            {
-                "馬番A": int(a) if a.isdigit() else a,
-                "馬名A": horse_name_map.get(a, ""),
-                "馬番B": int(b) if b.isdigit() else b,
-                "馬名B": horse_name_map.get(b, ""),
-                "馬番C": int(c) if c.isdigit() else c,
-                "馬名C": horse_name_map.get(c, ""),
-                "三連複オッズ": round(trio_map.get((a, b, c)), 4) if trio_map.get((a, b, c)) is not None else None,
-                "三連単3頭ボックス合成オッズ": round(trifecta_box, 4) if trifecta_box is not None else None,
-            }
-        )
+    for idx_a in range(len(horses)):
+        for idx_b in range(idx_a + 1, len(horses)):
+            for idx_c in range(idx_b + 1, len(horses)):
+                a, b, c = horses[idx_a], horses[idx_b], horses[idx_c]
+                trio_key = tuple(sorted((a, b, c)))
+                trifecta_box = _synthetic_odds(trifecta_box_map.get(trio_key, []))
+                rows.append(
+                    {
+                        "馬番A": int(a) if a.isdigit() else a,
+                        "馬名A": horse_name_map.get(a, ""),
+                        "馬番B": int(b) if b.isdigit() else b,
+                        "馬名B": horse_name_map.get(b, ""),
+                        "馬番C": int(c) if c.isdigit() else c,
+                        "馬名C": horse_name_map.get(c, ""),
+                        "三連複オッズ": round(trio_map.get(trio_key), 4) if trio_map.get(trio_key) is not None else None,
+                        "三連単3頭ボックス合成オッズ": round(trifecta_box, 4) if trifecta_box is not None else None,
+                    }
+                )
 
     frame = pd.DataFrame(rows)
     if frame.empty:
@@ -524,11 +530,10 @@ def build_comparisons(
 
     compare2 = master[["馬番", "馬名"]].copy()
     compare2["複勝オッズ"] = compare2["馬番"].astype(str).map(fukusho_map)
-    compare2["ワイド流し合成オッズ"] = compare2["馬番"].astype(str).map(wide_flow)
     compare2["三連複流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrenpuku_flow)
     compare2["三連単1頭軸マルチ合成オッズ"] = compare2["馬番"].astype(str).map(sanrentan_any_pos)
     compare2["馬番"] = pd.to_numeric(compare2["馬番"], errors="coerce").astype("Int64")
-    compare2 = _add_spread_column(compare2, ["複勝オッズ", "ワイド流し合成オッズ", "三連複流し合成オッズ", "三連単1頭軸マルチ合成オッズ"])
+    compare2 = _add_spread_column(compare2, ["複勝オッズ", "三連複流し合成オッズ", "三連単1頭軸マルチ合成オッズ"])
 
     compare3 = _build_pair_compare(
         frames.get("馬連", pd.DataFrame()),
@@ -550,12 +555,14 @@ def build_comparisons(
         frames.get("三連複", pd.DataFrame()),
         frames.get("三連単", pd.DataFrame()),
         horse_name_map,
+        horse_numbers,
         excluded,
     )
     compare6 = _build_trio_compare(
         frames.get("三連複", pd.DataFrame()),
         frames.get("三連単", pd.DataFrame()),
         horse_name_map,
+        horse_numbers,
         excluded,
     )
 

@@ -95,12 +95,20 @@
 
     <div id="meta" class="card"></div>
     <div id="status" class="card"></div>
+    <div id="globalFilter" class="card" style="display: none;">
+      <div class="toolbar">
+        <span>絞り込み（1頭）</span>
+        <select id="globalHorseFilter"></select>
+      </div>
+    </div>
     <div id="tables"></div>
 
     <script>
       const runBtn = document.getElementById("runBtn");
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
+      const globalFilterBox = document.getElementById("globalFilter");
+      const globalHorseFilter = document.getElementById("globalHorseFilter");
       const tablesBox = document.getElementById("tables");
       const API_BASE_URL =
         window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
@@ -109,6 +117,7 @@
       const tableOrder = ["all", "c1", "c2", "c3", "c4", "c5", "c6"];
       const tableStates = {};
       let statusCollapsed = true;
+      let selectedHorseFilter = "__all__";
       const COLUMN_LABELS_JA = {
         horse: "馬",
         horse_no: "馬番",
@@ -227,6 +236,26 @@
         return rows.filter((row) => String(row?.[filterColumn] ?? "") === filterValue);
       }
 
+      function getGlobalFilteredRows(tableKey, rows) {
+        if (!selectedHorseFilter || selectedHorseFilter === "__all__") {
+          return [...rows];
+        }
+        const selected = String(selectedHorseFilter);
+        if (tableKey === "all" || tableKey === "c1" || tableKey === "c2") {
+          return rows.filter((row) => String(row?.horse_name ?? "") === selected);
+        }
+        if (tableKey === "c3" || tableKey === "c4" || tableKey === "c5") {
+          return rows.filter((row) => String(row?.horse_name_a ?? "") === selected || String(row?.horse_name_b ?? "") === selected);
+        }
+        if (tableKey === "c6") {
+          return rows.filter((row) => {
+            const names = [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c].map((v) => String(v ?? ""));
+            return names.includes(selected);
+          });
+        }
+        return [...rows];
+      }
+
       function getFilteredRows2(rows, filterColumn, filterValue, filterColumn2, filterValue2) {
         let current = getFilteredRows(rows, filterColumn, filterValue);
         if (!filterColumn2 || !filterValue2 || filterValue2 === "__all__") {
@@ -315,7 +344,8 @@
         const columns = Object.keys(rows[0]);
         const displayColumns = getDisplayColumns(columns);
         const sortableColumns = getSortableColumns(columns);
-        const filteredRows = getFilteredRows2(rows, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
+        const globalFiltered = getGlobalFilteredRows(state.key, rows);
+        const filteredRows = getFilteredRows2(globalFiltered, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
         const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
         const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = sortableColumns
@@ -439,6 +469,49 @@
           .filter(Boolean)
           .map((state) => buildTableCard(state))
           .join("");
+      }
+
+      function updateGlobalHorseFilterOptions(comparisons) {
+        const allRows = [
+          ...(comparisons.compare1 || []),
+          ...(comparisons.compare2 || []),
+          ...(comparisons.compare3 || []),
+          ...(comparisons.compare4 || []),
+          ...(comparisons.compare5 || []),
+          ...(comparisons.compare6 || []),
+        ];
+        const names = Array.from(new Set(
+          allRows.flatMap((row) => [row?.horse_name, row?.horse_name_a, row?.horse_name_b, row?.horse_name_c])
+            .map((v) => String(v ?? "").trim())
+            .filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, "ja"));
+
+        const findHorse1Name = () => {
+          const sources = [
+            ...(comparisons.compare1 || []),
+            ...(comparisons.compare2 || []),
+            ...(comparisons.compare3 || []),
+            ...(comparisons.compare4 || []),
+            ...(comparisons.compare5 || []),
+            ...(comparisons.compare6 || []),
+          ];
+          for (const row of sources) {
+            if (String(row?.horse_no ?? "") === "1") return String(row?.horse_name ?? "").trim();
+            if (String(row?.horse_no_a ?? "") === "1") return String(row?.horse_name_a ?? "").trim();
+            if (String(row?.horse_no_b ?? "") === "1") return String(row?.horse_name_b ?? "").trim();
+            if (String(row?.horse_no_c ?? "") === "1") return String(row?.horse_name_c ?? "").trim();
+          }
+          return "";
+        };
+        const horse1Name = findHorse1Name();
+        if (selectedHorseFilter === "__all__" && horse1Name) {
+          selectedHorseFilter = horse1Name;
+        }
+
+        globalHorseFilter.innerHTML = [`<option value="__all__">全表示</option>`]
+          .concat(names.map((name) => `<option value="${escapeHtml(name)}" ${selectedHorseFilter === name ? "selected" : ""}>${escapeHtml(name)}</option>`))
+          .join("");
+        globalFilterBox.style.display = names.length ? "block" : "none";
       }
 
       window.changeSortColumn = (key, column) => {
@@ -594,9 +667,9 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "複勝系（等価）: 複勝 / ワイド全流し / 三連複1頭軸流し / 三連単1頭軸マルチ",
+            title: "複勝系（等価）: 複勝 / 三連複1頭軸流し / 三連単1頭軸マルチ",
             rows: comparisons.compare2 || [],
-            highlightColumns: ["place_odds", "wide_flow_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
+            highlightColumns: ["place_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
@@ -611,7 +684,7 @@
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
-            filterColumn: "horse_name_a",
+            filterColumn: "",
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
@@ -624,7 +697,7 @@
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
-            filterColumn: "horse_name_a",
+            filterColumn: "",
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
@@ -637,7 +710,7 @@
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
-            filterColumn: "horse_name_a",
+            filterColumn: "",
             filterValue: "__all__",
             filterColumn2: "",
             filterValue2: "__all__",
@@ -650,11 +723,13 @@
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
-            filterColumn: "horse_name_a",
+            filterColumn: "",
             filterValue: "__all__",
-            filterColumn2: "horse_name_b",
+            filterColumn2: "",
             filterValue2: "__all__",
           };
+
+          updateGlobalHorseFilterOptions(comparisons);
 
           renderTables();
         } catch (err) {
@@ -663,6 +738,10 @@
       }
 
       initExcludedPicker();
+      globalHorseFilter.addEventListener("change", (event) => {
+        selectedHorseFilter = String(event.target?.value || "__all__");
+        renderTables();
+      });
       runBtn.addEventListener("click", runAnalyze);
     </script>
   </body>
