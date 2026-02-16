@@ -22,6 +22,16 @@
       .hl-high { background: #fff4cc; font-weight: 700; }
       .hl-low { color: #9ca3af; }
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
+      .sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+      }
+      th.sticky-col {
+        z-index: 3;
+        background: #f5f5f5;
+      }
       .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
       select { padding: 6px; }
       .all-split-wrap { display: flex; width: 100%; }
@@ -622,8 +632,14 @@
         const focusedDisplayColumns = getDisplayColumns(focusedColumns);
         const focusedSortableColumns = getSortableColumns(focusedColumns);
         const focusedSortBy = focusedSortableColumns.includes(effectiveSortBy) ? effectiveSortBy : (focusedSortableColumns[0] || "");
+        const horseDisplayColumns = focusedDisplayColumns.filter((c) => ["horse", "horse_a", "horse_b", "horse_c"].includes(c));
+        const stickyHorseColumn =
+          state.key !== "all" && selectedHorseFilter !== "__all__" && horseDisplayColumns.length === 1 ? horseDisplayColumns[0] : null;
         const sortedRows = getSortedRows(focusedRows, focusedSortBy, state.sortOrder);
-        const thead = `<tr>${focusedDisplayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+        const thead = `<tr>${focusedDisplayColumns.map((c) => {
+          const stickyClass = stickyHorseColumn === c ? " sticky-col" : "";
+          return `<th class="${getColumnClass(c)}${stickyClass}">${escapeHtml(formatColumnLabel(c))}</th>`;
+        }).join("")}</tr>`;
         const options = focusedSortableColumns
           .map((c) => `<option value="${escapeHtml(c)}" ${focusedSortBy === c ? "selected" : ""}>${escapeHtml(formatColumnLabel(c))}</option>`)
           .join("");
@@ -702,6 +718,7 @@
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
+                if (stickyHorseColumn === c) cls = `${cls} sticky-col`.trim();
                 cls = `${cls} ${getColumnClass(c)}`.trim();
                 return `<td class="${cls}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`;
               })
@@ -1001,7 +1018,7 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "複勝系（等価）: 複勝 / 三連複1頭軸 / 三連単1頭軸マルチ",
+            title: "複勝系: 複勝 / 三連複1頭軸 / 三連単1頭軸マルチ",
             rows: comparisons.compare2 || [],
             highlightColumns: ["place_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
             sortBy: "spread",
@@ -1012,7 +1029,7 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "馬連系（等価）: 馬連 / 馬単裏表 / 三連単1-2着裏表3着全流し",
+            title: "馬連系: 馬連 / 馬単裏表 / 三連単1-2着裏表3着全流し",
             rows: comparisons.compare3 || [],
             highlightColumns: ["quinella_odds", "exacta_both_flow_odds", "trifecta_top2_both_any_third_odds"],
             sortBy: "spread",
@@ -1026,7 +1043,7 @@
           };
           tableStates.c4 = {
             key: "c4",
-            title: "馬単系（等価）: 馬単 / 三連単3着全流し",
+            title: "馬単系: 馬単 / 三連単3着全流し",
             rows: comparisons.compare4 || [],
             highlightColumns: ["exacta_odds", "trifecta_third_all_flow_odds"],
             sortBy: "spread",
@@ -1040,7 +1057,7 @@
           };
           tableStates.c5 = {
             key: "c5",
-            title: "ワイド系（等価）: ワイド / 三連複2頭軸 / 三連単2頭軸マルチ",
+            title: "ワイド系: ワイド / 三連複2頭軸 / 三連単2頭軸マルチ",
             rows: comparisons.compare5 || [],
             highlightColumns: ["wide_odds", "trio_two_head_flow_odds", "trifecta_two_head_multi_odds"],
             sortBy: "spread",
@@ -1054,7 +1071,7 @@
           };
           tableStates.c6 = {
             key: "c6",
-            title: "三連複系（等価）: 三連複 / 三連単3頭BOX",
+            title: "三連複系: 三連複 / 三連単3頭BOX",
             rows: comparisons.compare6 || [],
             highlightColumns: ["trio_odds", "trifecta_three_head_box_odds"],
             sortBy: "spread",
