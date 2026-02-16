@@ -298,10 +298,6 @@
         return current.filter((row) => String(row?.[filterColumn2] ?? "") === filterValue2);
       }
 
-      function buildGlobalFilterCard() {
-        return "";
-      }
-
       function buildSyncedHorseFilterOptions() {
         if (!globalFilterNames.length) return "";
         return [`<option value="__all__" ${selectedHorseFilter === "__all__" ? "selected" : ""}>全表示</option>`]
@@ -944,22 +940,16 @@
               key: "e1",
               title: "単勝系 拡張: 単勝 / 馬単2着流し / 三連単2着流し / 三連単3着流し",
               rows: comparisons.compare1_extended || [],
-              filterKey: "",
-              columns: ["horse_no", "horse_name", "win_odds", "exacta_second_flow_odds", "trifecta_second_flow_odds", "trifecta_third_flow_odds"],
             },
             e3: {
               key: "e3",
               title: "馬連系 拡張: 馬連 / 三連単1-3着裏表2着全流し / 三連単2-3着裏表1着全流し",
               rows: comparisons.compare3_extended || [],
-              filterKey: "c3",
-              columns: ["horse_no_a", "horse_name_a", "horse_no_b", "horse_name_b", "quinella_odds", "trifecta_top13_both_any_second_odds", "trifecta_bottom23_both_any_first_odds"],
             },
             e4: {
               key: "e4",
               title: "馬単系 拡張: 馬単 / 三連単1着全流し / 三連単2着全流し",
               rows: comparisons.compare4_extended || [],
-              filterKey: "c4",
-              columns: ["horse_no_a", "horse_name_a", "horse_no_b", "horse_name_b", "exacta_odds", "trifecta_first_all_flow_odds", "trifecta_second_all_flow_odds"],
             },
           };
 
