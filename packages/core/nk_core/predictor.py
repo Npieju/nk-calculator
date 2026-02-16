@@ -258,6 +258,189 @@ def _build_pair_compare(
     return _add_spread_column(pair_df, ["馬連オッズ", "馬単表裏合成オッズ", "三連単1-2着裏表3着全流し合成オッズ"])
 
 
+def _build_exacta_compare(
+    umatan: pd.DataFrame | None,
+    sanrentan: pd.DataFrame | None,
+    horse_name_map: dict[str, str],
+    horses: list[str],
+    excluded: set[str],
+) -> pd.DataFrame:
+    umatan_dir_map: dict[tuple[str, str], float] = {}
+    if umatan is not None and not umatan.empty and {"組み合わせ", "オッズ"}.issubset(set(umatan.columns)):
+        for _, row in umatan.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 2 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                umatan_dir_map[(nums[0], nums[1])] = odd
+
+    sanrentan_map: dict[tuple[str, str, str], float] = {}
+    if sanrentan is not None and not sanrentan.empty and {"組み合わせ", "オッズ"}.issubset(set(sanrentan.columns)):
+        for _, row in sanrentan.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 3 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                sanrentan_map[(nums[0], nums[1], nums[2])] = odd
+
+    rows: list[dict[str, object]] = []
+    for a, b in sorted(umatan_dir_map.keys(), key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]))):
+        third_odds: list[float] = []
+        for c in horses:
+            if c in {a, b}:
+                continue
+            value = sanrentan_map.get((a, b, c))
+            if value is not None:
+                third_odds.append(value)
+
+        synth_third = _synthetic_odds(third_odds)
+        rows.append(
+            {
+                "馬番A": int(a) if a.isdigit() else a,
+                "馬名A": horse_name_map.get(a, ""),
+                "馬番B": int(b) if b.isdigit() else b,
+                "馬名B": horse_name_map.get(b, ""),
+                "馬単オッズ": round(umatan_dir_map[(a, b)], 4),
+                "三連単3着全流し合成オッズ": round(synth_third, 4) if synth_third is not None else None,
+            }
+        )
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    return _add_spread_column(frame, ["馬単オッズ", "三連単3着全流し合成オッズ"])
+
+
+def _build_wide_compare(
+    wide: pd.DataFrame | None,
+    sanrenpuku: pd.DataFrame | None,
+    sanrentan: pd.DataFrame | None,
+    horse_name_map: dict[str, str],
+    excluded: set[str],
+) -> pd.DataFrame:
+    wide_map: dict[tuple[str, str], float] = {}
+    if wide is not None and not wide.empty and {"組み合わせ", "オッズ"}.issubset(set(wide.columns)):
+        for _, row in wide.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 2 or any(n in excluded for n in nums):
+                continue
+            key = tuple(sorted(nums))
+            if key in wide_map:
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                wide_map[key] = odd
+
+    trio_axis_map: dict[tuple[str, str], list[float]] = {}
+    if sanrenpuku is not None and not sanrenpuku.empty and {"組み合わせ", "オッズ"}.issubset(set(sanrenpuku.columns)):
+        seen_trios: set[tuple[str, str, str]] = set()
+        for _, row in sanrenpuku.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 3 or any(n in excluded for n in nums):
+                continue
+            trio_key = tuple(sorted(nums))
+            if trio_key in seen_trios:
+                continue
+            seen_trios.add(trio_key)
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is None or odd <= 0:
+                continue
+            a, b, c = trio_key
+            for pair in [tuple(sorted((a, b))), tuple(sorted((a, c))), tuple(sorted((b, c)))]:
+                trio_axis_map.setdefault(pair, []).append(odd)
+
+    trifecta_multi_map: dict[tuple[str, str], list[float]] = {}
+    if sanrentan is not None and not sanrentan.empty and {"組み合わせ", "オッズ"}.issubset(set(sanrentan.columns)):
+        for _, row in sanrentan.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 3 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is None or odd <= 0:
+                continue
+            a, b, c = nums
+            for pair in [tuple(sorted((a, b))), tuple(sorted((a, c))), tuple(sorted((b, c)))]:
+                trifecta_multi_map.setdefault(pair, []).append(odd)
+
+    pair_keys = set(wide_map.keys()) | set(trio_axis_map.keys()) | set(trifecta_multi_map.keys())
+    rows: list[dict[str, object]] = []
+    for a, b in sorted(pair_keys, key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]))):
+        trio_synth = _synthetic_odds(trio_axis_map.get((a, b), []))
+        trifecta_synth = _synthetic_odds(trifecta_multi_map.get((a, b), []))
+        rows.append(
+            {
+                "馬番A": int(a) if a.isdigit() else a,
+                "馬名A": horse_name_map.get(a, ""),
+                "馬番B": int(b) if b.isdigit() else b,
+                "馬名B": horse_name_map.get(b, ""),
+                "ワイドオッズ": round(wide_map.get((a, b)), 4) if wide_map.get((a, b)) is not None else None,
+                "三連複2頭軸流し合成オッズ": round(trio_synth, 4) if trio_synth is not None else None,
+                "三連単2頭軸マルチ合成オッズ": round(trifecta_synth, 4) if trifecta_synth is not None else None,
+            }
+        )
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    return _add_spread_column(frame, ["ワイドオッズ", "三連複2頭軸流し合成オッズ", "三連単2頭軸マルチ合成オッズ"])
+
+
+def _build_trio_compare(
+    sanrenpuku: pd.DataFrame | None,
+    sanrentan: pd.DataFrame | None,
+    horse_name_map: dict[str, str],
+    excluded: set[str],
+) -> pd.DataFrame:
+    trio_map: dict[tuple[str, str, str], float] = {}
+    if sanrenpuku is not None and not sanrenpuku.empty and {"組み合わせ", "オッズ"}.issubset(set(sanrenpuku.columns)):
+        for _, row in sanrenpuku.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 3 or any(n in excluded for n in nums):
+                continue
+            key = tuple(sorted(nums))
+            if key in trio_map:
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is not None and odd > 0:
+                trio_map[key] = odd
+
+    trifecta_box_map: dict[tuple[str, str, str], list[float]] = {}
+    if sanrentan is not None and not sanrentan.empty and {"組み合わせ", "オッズ"}.issubset(set(sanrentan.columns)):
+        for _, row in sanrentan.iterrows():
+            nums = _combo_numbers(row.get("組み合わせ"))
+            if len(nums) != 3 or any(n in excluded for n in nums):
+                continue
+            odd = _parse_odds_value(row.get("オッズ"))
+            if odd is None or odd <= 0:
+                continue
+            key = tuple(sorted(nums))
+            trifecta_box_map.setdefault(key, []).append(odd)
+
+    trio_keys = set(trio_map.keys()) | set(trifecta_box_map.keys())
+    rows: list[dict[str, object]] = []
+    for a, b, c in sorted(trio_keys, key=lambda x: (_horse_sort_key(x[0]), _horse_sort_key(x[1]), _horse_sort_key(x[2]))):
+        trifecta_box = _synthetic_odds(trifecta_box_map.get((a, b, c), []))
+        rows.append(
+            {
+                "馬番A": int(a) if a.isdigit() else a,
+                "馬名A": horse_name_map.get(a, ""),
+                "馬番B": int(b) if b.isdigit() else b,
+                "馬名B": horse_name_map.get(b, ""),
+                "馬番C": int(c) if c.isdigit() else c,
+                "馬名C": horse_name_map.get(c, ""),
+                "三連複オッズ": round(trio_map.get((a, b, c)), 4) if trio_map.get((a, b, c)) is not None else None,
+                "三連単3頭ボックス合成オッズ": round(trifecta_box, 4) if trifecta_box is not None else None,
+            }
+        )
+
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return frame
+    return _add_spread_column(frame, ["三連複オッズ", "三連単3頭ボックス合成オッズ"])
+
+
 def _build_horse_master(entries: list[dict[str, object]], tansho_frame: pd.DataFrame, excluded: set[str]) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     if not tansho_frame.empty and {"馬番", "馬名"}.issubset(set(tansho_frame.columns)):
@@ -341,10 +524,11 @@ def build_comparisons(
 
     compare2 = master[["馬番", "馬名"]].copy()
     compare2["複勝オッズ"] = compare2["馬番"].astype(str).map(fukusho_map)
+    compare2["ワイド流し合成オッズ"] = compare2["馬番"].astype(str).map(wide_flow)
     compare2["三連複流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrenpuku_flow)
-    compare2["三連単1頭流し合成オッズ"] = compare2["馬番"].astype(str).map(sanrentan_any_pos)
+    compare2["三連単1頭軸マルチ合成オッズ"] = compare2["馬番"].astype(str).map(sanrentan_any_pos)
     compare2["馬番"] = pd.to_numeric(compare2["馬番"], errors="coerce").astype("Int64")
-    compare2 = _add_spread_column(compare2, ["複勝オッズ", "三連複流し合成オッズ", "三連単1頭流し合成オッズ"])
+    compare2 = _add_spread_column(compare2, ["複勝オッズ", "ワイド流し合成オッズ", "三連複流し合成オッズ", "三連単1頭軸マルチ合成オッズ"])
 
     compare3 = _build_pair_compare(
         frames.get("馬連", pd.DataFrame()),
@@ -354,10 +538,33 @@ def build_comparisons(
         horse_numbers,
         excluded,
     )
+    compare4 = _build_exacta_compare(
+        frames.get("馬単", pd.DataFrame()),
+        frames.get("三連単", pd.DataFrame()),
+        horse_name_map,
+        horse_numbers,
+        excluded,
+    )
+    compare5 = _build_wide_compare(
+        frames.get("ワイド", pd.DataFrame()),
+        frames.get("三連複", pd.DataFrame()),
+        frames.get("三連単", pd.DataFrame()),
+        horse_name_map,
+        excluded,
+    )
+    compare6 = _build_trio_compare(
+        frames.get("三連複", pd.DataFrame()),
+        frames.get("三連単", pd.DataFrame()),
+        horse_name_map,
+        excluded,
+    )
 
     return {
         "all_market_compare": all_market_compare.to_dict(orient="records"),
         "compare1": compare1.to_dict(orient="records"),
         "compare2": compare2.to_dict(orient="records"),
         "compare3": compare3.to_dict(orient="records"),
+        "compare4": compare4.to_dict(orient="records"),
+        "compare5": compare5.to_dict(orient="records"),
+        "compare6": compare6.to_dict(orient="records"),
     }

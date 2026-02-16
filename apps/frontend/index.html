@@ -106,7 +106,7 @@
         window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
           ? "http://localhost:8000"
           : "https://nk-calculator-api.onrender.com";
-      const tableOrder = ["all", "c1", "c2", "c3"];
+      const tableOrder = ["all", "c1", "c2", "c3", "c4", "c5", "c6"];
       const tableStates = {};
       let statusCollapsed = true;
       const COLUMN_LABELS_JA = {
@@ -115,6 +115,7 @@
         horse_name: "馬名",
         horse_a: "馬A",
         horse_b: "馬B",
+        horse_c: "馬C",
         win_odds: "単勝",
         place_odds: "複勝",
         quinella_flow_odds: "馬連",
@@ -122,18 +123,28 @@
         exacta_first_flow_odds: "馬単1着",
         exacta_second_flow_odds: "馬単2着",
         trio_flow_odds: "三連複",
-        trifecta_single_head_flow_odds: "三連単1頭",
+        trifecta_single_head_flow_odds: "三連単1頭軸マルチ",
         trifecta_first_flow_odds: "三単1着",
         trifecta_second_flow_odds: "三単2着",
         trifecta_third_flow_odds: "三単3着",
+        trifecta_second_third_flow_odds: "三単2,3着",
         spread: "差異率",
         horse_no_a: "馬番A",
         horse_name_a: "馬名A",
         horse_no_b: "馬番B",
         horse_name_b: "馬名B",
+        horse_no_c: "馬番C",
+        horse_name_c: "馬名C",
         quinella_odds: "馬連",
         exacta_both_flow_odds: "馬単裏表",
         trifecta_top2_both_any_third_odds: "三単1-2着裏表3着全流し",
+        exacta_odds: "馬単",
+        trifecta_third_all_flow_odds: "三単3着全流し",
+        wide_odds: "ワイド",
+        trio_two_head_flow_odds: "三連複2頭軸",
+        trifecta_two_head_multi_odds: "三単2頭軸マルチ",
+        trio_odds: "三連複",
+        trifecta_three_head_box_odds: "三単3頭BOX",
       };
 
       function escapeHtml(text) {
@@ -216,6 +227,14 @@
         return rows.filter((row) => String(row?.[filterColumn] ?? "") === filterValue);
       }
 
+      function getFilteredRows2(rows, filterColumn, filterValue, filterColumn2, filterValue2) {
+        let current = getFilteredRows(rows, filterColumn, filterValue);
+        if (!filterColumn2 || !filterValue2 || filterValue2 === "__all__") {
+          return current;
+        }
+        return current.filter((row) => String(row?.[filterColumn2] ?? "") === filterValue2);
+      }
+
       function getDisplayColumns(columns) {
         const out = [];
         for (const c of columns) {
@@ -238,6 +257,13 @@
             continue;
           }
           if (c === "horse_name_b" && columns.includes("horse_no_b")) {
+            continue;
+          }
+          if (c === "horse_no_c" && columns.includes("horse_name_c")) {
+            out.push("horse_c");
+            continue;
+          }
+          if (c === "horse_name_c" && columns.includes("horse_no_c")) {
             continue;
           }
           out.push(c);
@@ -263,6 +289,9 @@
         if (displayColumn === "horse_b") {
           return formatHorse(row?.horse_no_b, row?.horse_name_b);
         }
+        if (displayColumn === "horse_c") {
+          return formatHorse(row?.horse_no_c, row?.horse_name_c);
+        }
         return row?.[displayColumn];
       }
 
@@ -271,6 +300,7 @@
           if (c === "horse_name" && columns.includes("horse_no")) return false;
           if (c === "horse_name_a" && columns.includes("horse_no_a")) return false;
           if (c === "horse_name_b" && columns.includes("horse_no_b")) return false;
+          if (c === "horse_name_c" && columns.includes("horse_no_c")) return false;
           return true;
         });
       }
@@ -285,7 +315,7 @@
         const columns = Object.keys(rows[0]);
         const displayColumns = getDisplayColumns(columns);
         const sortableColumns = getSortableColumns(columns);
-        const filteredRows = getFilteredRows(rows, state.filterColumn, state.filterValue);
+        const filteredRows = getFilteredRows2(rows, state.filterColumn, state.filterValue, state.filterColumn2, state.filterValue2);
         const sortedRows = getSortedRows(filteredRows, state.sortBy, state.sortOrder);
         const thead = `<tr>${displayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
         const options = sortableColumns
@@ -297,6 +327,12 @@
           : [];
         const filterOptions = [`<option value="__all__" ${state.filterValue === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(filterCandidates.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
+          .join("");
+        const filterCandidates2 = state.filterColumn2 && columns.includes(state.filterColumn2)
+          ? Array.from(new Set(rows.map((row) => String(row?.[state.filterColumn2] ?? "")).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ja"))
+          : [];
+        const filterOptions2 = [`<option value="__all__" ${state.filterValue2 === "__all__" ? "selected" : ""}>全表示</option>`]
+          .concat(filterCandidates2.map((v) => `<option value="${escapeHtml(v)}" ${state.filterValue2 === v ? "selected" : ""}>${escapeHtml(v)}</option>`))
           .join("");
 
         if (state.key === "all") {
@@ -382,6 +418,10 @@
               <span>絞り込み</span>
               <select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>
               ` : ""}
+              ${state.filterColumn2 ? `
+              <span>絞り込み2</span>
+              <select onchange="window.changeFilterValue2('${escapeHtml(state.key)}', this.value)">${filterOptions2}</select>
+              ` : ""}
             </div>
             <div class="scroll">
               <table>
@@ -416,6 +456,12 @@
       window.changeFilterValue = (key, value) => {
         if (!tableStates[key]) return;
         tableStates[key].filterValue = value;
+        renderTables();
+      };
+
+      window.changeFilterValue2 = (key, value) => {
+        if (!tableStates[key]) return;
+        tableStates[key].filterValue2 = value;
         renderTables();
       };
 
@@ -537,7 +583,7 @@
           };
           tableStates.c1 = {
             key: "c1",
-            title: "比較1（全流し合成オッズ）: 単勝 / 馬単1着 / 三連単1着",
+            title: "単勝系（等価）: 単勝 / 馬単1着全流し / 三連単1着全流し",
             rows: comparisons.compare1 || [],
             highlightColumns: ["win_odds", "exacta_first_flow_odds", "trifecta_first_flow_odds"],
             sortBy: "spread",
@@ -548,9 +594,9 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "比較2（全流し合成オッズ）: 複勝 / 三連複 / 三連単1頭マルチ",
+            title: "複勝系（等価）: 複勝 / ワイド全流し / 三連複1頭軸流し / 三連単1頭軸マルチ",
             rows: comparisons.compare2 || [],
-            highlightColumns: ["place_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
+            highlightColumns: ["place_odds", "wide_flow_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
             sortBy: "spread",
             sortOrder: "desc",
             collapsed: false,
@@ -559,7 +605,7 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "比較3（合成オッズ）: 馬連 / 馬単裏表 / 三単1-2着裏表3着全流し",
+            title: "馬連系（等価）: 馬連 / 馬単裏表 / 三単1-2着裏表3着全流し",
             rows: comparisons.compare3 || [],
             highlightColumns: ["quinella_odds", "exacta_both_flow_odds", "trifecta_top2_both_any_third_odds"],
             sortBy: "spread",
@@ -567,6 +613,47 @@
             collapsed: false,
             filterColumn: "horse_name_a",
             filterValue: "__all__",
+            filterColumn2: "",
+            filterValue2: "__all__",
+          };
+          tableStates.c4 = {
+            key: "c4",
+            title: "馬単系（等価）: 馬単 / 三単3着全流し",
+            rows: comparisons.compare4 || [],
+            highlightColumns: ["exacta_odds", "trifecta_third_all_flow_odds"],
+            sortBy: "spread",
+            sortOrder: "desc",
+            collapsed: false,
+            filterColumn: "horse_name_a",
+            filterValue: "__all__",
+            filterColumn2: "",
+            filterValue2: "__all__",
+          };
+          tableStates.c5 = {
+            key: "c5",
+            title: "ワイド系（等価）: ワイド / 三連複2頭軸 / 三単2頭軸マルチ",
+            rows: comparisons.compare5 || [],
+            highlightColumns: ["wide_odds", "trio_two_head_flow_odds", "trifecta_two_head_multi_odds"],
+            sortBy: "spread",
+            sortOrder: "desc",
+            collapsed: false,
+            filterColumn: "horse_name_a",
+            filterValue: "__all__",
+            filterColumn2: "",
+            filterValue2: "__all__",
+          };
+          tableStates.c6 = {
+            key: "c6",
+            title: "三連複系（等価）: 三連複 / 三単3頭BOX",
+            rows: comparisons.compare6 || [],
+            highlightColumns: ["trio_odds", "trifecta_three_head_box_odds"],
+            sortBy: "spread",
+            sortOrder: "desc",
+            collapsed: false,
+            filterColumn: "horse_name_a",
+            filterValue: "__all__",
+            filterColumn2: "horse_name_b",
+            filterValue2: "__all__",
           };
 
           renderTables();

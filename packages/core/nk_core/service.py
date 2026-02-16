@@ -27,9 +27,11 @@ COMPARE_COLUMN_MAP = {
     "馬単(2着流し)合成オッズ": "exacta_second_flow_odds",
     "三連複流し合成オッズ": "trio_flow_odds",
     "三連単1頭流し合成オッズ": "trifecta_single_head_flow_odds",
+    "三連単1頭軸マルチ合成オッズ": "trifecta_single_head_flow_odds",
     "三連単(1着流し)合成オッズ": "trifecta_first_flow_odds",
     "三連単(2着流し)合成オッズ": "trifecta_second_flow_odds",
     "三連単(3着流し)合成オッズ": "trifecta_third_flow_odds",
+    "三連単(2,3着流し)合成オッズ": "trifecta_second_third_flow_odds",
     "差異率": "spread",
     "差異幅": "spread",
     "馬番A": "horse_no_a",
@@ -39,6 +41,15 @@ COMPARE_COLUMN_MAP = {
     "馬連オッズ": "quinella_odds",
     "馬単表裏合成オッズ": "exacta_both_flow_odds",
     "三連単1-2着裏表3着全流し合成オッズ": "trifecta_top2_both_any_third_odds",
+    "馬単オッズ": "exacta_odds",
+    "三連単3着全流し合成オッズ": "trifecta_third_all_flow_odds",
+    "ワイドオッズ": "wide_odds",
+    "三連複2頭軸流し合成オッズ": "trio_two_head_flow_odds",
+    "三連単2頭軸マルチ合成オッズ": "trifecta_two_head_multi_odds",
+    "馬番C": "horse_no_c",
+    "馬名C": "horse_name_c",
+    "三連複オッズ": "trio_odds",
+    "三連単3頭ボックス合成オッズ": "trifecta_three_head_box_odds",
 }
 
 
