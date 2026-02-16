@@ -124,13 +124,13 @@
         place_odds: "複勝",
         quinella_flow_odds: "馬連",
         wide_flow_odds: "ワイド",
-        exacta_first_flow_odds: "馬単A→全",
-        exacta_second_flow_odds: "馬単全→A",
+        exacta_first_flow_odds: "馬単A→*",
+        exacta_second_flow_odds: "馬単*→A",
         trio_flow_odds: "三連複",
-        trifecta_single_head_flow_odds: "3単A=全=全",
-        trifecta_first_flow_odds: "3単A→全→全",
-        trifecta_second_flow_odds: "3単全→A→全",
-        trifecta_third_flow_odds: "3単全→全→A",
+        trifecta_single_head_flow_odds: "3単A=* =*",
+        trifecta_first_flow_odds: "3単A→*→*",
+        trifecta_second_flow_odds: "3単*→A→*",
+        trifecta_third_flow_odds: "3単*→*→A",
         trifecta_second_third_flow_odds: "三単2,3着",
         spread: "差異率",
         horse_no_a: "馬番A",
@@ -145,14 +145,14 @@
         trifecta_top13_both_any_second_odds: "3単1-3裏↔2全",
         trifecta_bottom23_both_any_first_odds: "3単2-3裏↔1全",
         exacta_odds: "馬単",
-        trifecta_third_all_flow_odds: "3単3着全",
-        trifecta_first_all_flow_odds: "3単1着全",
-        trifecta_second_all_flow_odds: "3単2着全",
+        trifecta_third_all_flow_odds: "3単AB→3全",
+        trifecta_first_all_flow_odds: "3単*→A→B",
+        trifecta_second_all_flow_odds: "3単A→*→B",
         wide_odds: "ワイド",
-        trio_two_head_flow_odds: "3複2頭軸",
-        trifecta_two_head_multi_odds: "3単2頭軸M",
+        trio_two_head_flow_odds: "3複AB軸",
+        trifecta_two_head_multi_odds: "3単AB軸M",
         trio_odds: "三連複",
-        trifecta_three_head_box_odds: "三単3頭BOX",
+        trifecta_three_head_box_odds: "3単ABC箱",
       };
 
       function escapeHtml(text) {
@@ -863,7 +863,7 @@
           };
           tableStates.c1 = {
             key: "c1",
-            title: "単勝系（等価, A=対象馬）: 単勝 / 馬単A→全 / 3単A→全→全",
+            title: "単勝系（等価）: 単勝 / 馬単1着流し / 三連単1着流し（A=注目馬, *=その他全頭）",
             rows: comparisons.compare1 || [],
             highlightColumns: ["win_odds", "exacta_first_flow_odds", "trifecta_first_flow_odds"],
             sortBy: "spread",
@@ -874,7 +874,7 @@
           };
           tableStates.c2 = {
             key: "c2",
-            title: "複勝系（等価, A=対象馬）: 複勝 / 3複A軸 / 3単A=全=全",
+            title: "複勝系（等価）: 複勝 / 三連複1頭軸 / 三連単1頭軸マルチ（A=注目馬）",
             rows: comparisons.compare2 || [],
             highlightColumns: ["place_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"],
             sortBy: "spread",
@@ -885,7 +885,7 @@
           };
           tableStates.c3 = {
             key: "c3",
-            title: "馬連系（等価）: 馬連 / 馬単裏表 / 3単1-2裏↔3全",
+            title: "馬連系（等価）: 馬連 / 馬単裏表 / 三連単1-2着裏表3着全流し（A-Bの2頭組）",
             rows: comparisons.compare3 || [],
             highlightColumns: ["quinella_odds", "exacta_both_flow_odds", "trifecta_top2_both_any_third_odds"],
             sortBy: "spread",
@@ -899,7 +899,7 @@
           };
           tableStates.c4 = {
             key: "c4",
-            title: "馬単系（等価）: 馬単 / 3単3着全",
+            title: "馬単系（等価）: 馬単 / 三連単3着全流し（A→B固定, 3着のみ全流し）",
             rows: comparisons.compare4 || [],
             highlightColumns: ["exacta_odds", "trifecta_third_all_flow_odds"],
             sortBy: "spread",
@@ -913,7 +913,7 @@
           };
           tableStates.c5 = {
             key: "c5",
-            title: "ワイド系（等価）: ワイド / 3複2頭軸 / 3単2頭軸M",
+            title: "ワイド系（等価）: ワイド / 三連複2頭軸 / 三連単2頭軸マルチ（A-Bの2頭軸）",
             rows: comparisons.compare5 || [],
             highlightColumns: ["wide_odds", "trio_two_head_flow_odds", "trifecta_two_head_multi_odds"],
             sortBy: "spread",
@@ -927,7 +927,7 @@
           };
           tableStates.c6 = {
             key: "c6",
-            title: "三連複系（等価, 3頭組）: 三連複 / 3単3頭BOX",
+            title: "三連複系（等価）: 三連複 / 三連単3頭BOX（A-B-Cの3頭組）",
             rows: comparisons.compare6 || [],
             highlightColumns: ["trio_odds", "trifecta_three_head_box_odds"],
             sortBy: "spread",
@@ -943,21 +943,21 @@
           extendedStates = {
             e1: {
               key: "e1",
-              title: "単勝系 拡張（A=対象馬）: 単勝 / 馬単全→A / 3単全→A→全 / 3単全→全→A",
+              title: "単勝系 拡張: 単勝 / 馬単2着流し / 三連単2着流し / 三連単3着流し（A=注目馬）",
               rows: comparisons.compare1_extended || [],
               filterKey: "",
               columns: ["horse_no", "horse_name", "win_odds", "exacta_second_flow_odds", "trifecta_second_flow_odds", "trifecta_third_flow_odds"],
             },
             e3: {
               key: "e3",
-              title: "馬連系 拡張: 馬連 / 3単1-3裏↔2全 / 3単2-3裏↔1全",
+              title: "馬連系 拡張: 馬連 / 三連単1-3着裏表2着全流し / 三連単2-3着裏表1着全流し（A-Bの2頭組）",
               rows: comparisons.compare3_extended || [],
               filterKey: "c3",
               columns: ["horse_no_a", "horse_name_a", "horse_no_b", "horse_name_b", "quinella_odds", "trifecta_top13_both_any_second_odds", "trifecta_bottom23_both_any_first_odds"],
             },
             e4: {
               key: "e4",
-              title: "馬単系 拡張: 馬単 / 3単1着全 / 3単2着全",
+              title: "馬単系 拡張: 馬単 / 三連単1着全流し / 三連単2着全流し（A→B固定）",
               rows: comparisons.compare4_extended || [],
               filterKey: "c4",
               columns: ["horse_no_a", "horse_name_a", "horse_no_b", "horse_name_b", "exacta_odds", "trifecta_first_all_flow_odds", "trifecta_second_all_flow_odds"],
