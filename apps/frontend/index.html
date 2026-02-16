@@ -505,10 +505,6 @@
         if (state.key === "c6") {
           const selectedB = normalizeHorseName(state.secondHorseFilter);
           const hasSelectedB = selectedB && selectedB !== "__all__";
-          if (!hasSelectedB) {
-            return { displayRows: rows, displayColumns: columns };
-          }
-
           const focusedRows = rows
             .map((row) => {
               const trio = [
@@ -518,27 +514,48 @@
               ];
 
               const hasA = trio.some((item) => item.normalized === selectedA);
-              const hasB = trio.some((item) => item.normalized === selectedB);
-              if (!hasA || !hasB) {
+              if (!hasA) {
                 return null;
               }
 
-              const third = trio.find((item) => item.normalized !== selectedA && item.normalized !== selectedB);
-              if (!third) {
+              if (hasSelectedB) {
+                const hasB = trio.some((item) => item.normalized === selectedB);
+                if (!hasB) {
+                  return null;
+                }
+
+                const third = trio.find((item) => item.normalized !== selectedA && item.normalized !== selectedB);
+                if (!third) {
+                  return null;
+                }
+
+                return {
+                  ...row,
+                  horse_no_c: third.no,
+                  horse_name_c: third.name,
+                };
+              }
+
+              const others = trio.filter((item) => item.normalized !== selectedA);
+              if (!others.length) {
                 return null;
               }
+              const first = others[0];
+              const second = others[1] || { no: null, name: null };
 
               return {
                 ...row,
-                horse_no_c: third.no,
-                horse_name_c: third.name,
+                horse_no_b: first.no,
+                horse_name_b: first.name,
+                horse_no_c: second.no,
+                horse_name_c: second.name,
               };
             })
             .filter(Boolean);
 
-          const displayColumns = columns.filter(
-            (c) => c !== "horse_no_a" && c !== "horse_name_a" && c !== "horse_no_b" && c !== "horse_name_b"
-          );
+          const displayColumns = hasSelectedB
+            ? columns.filter((c) => c !== "horse_no_a" && c !== "horse_name_a" && c !== "horse_no_b" && c !== "horse_name_b")
+            : columns.filter((c) => c !== "horse_no_a" && c !== "horse_name_a");
           return { displayRows: focusedRows, displayColumns };
         }
 
