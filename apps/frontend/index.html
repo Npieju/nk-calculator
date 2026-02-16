@@ -31,7 +31,13 @@
       .excluded-picker { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin-top: 6px; max-width: 480px; }
       .excluded-item { display: flex; align-items: center; gap: 4px; font-size: 12px; }
       .excluded-item input { width: auto; padding: 0; }
-      th.col-clip, td.col-clip {
+      th.col-clip {
+        white-space: pre-line;
+        line-height: 1.15;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      td.col-clip {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
