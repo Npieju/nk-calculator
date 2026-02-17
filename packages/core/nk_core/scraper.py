@@ -23,6 +23,16 @@ ODDS_TYPE_MAP = {
     "三連複": "b7",
     "三連単": "b8",
 }
+ODDS_TYPE_MAP_NAR = {
+    "単勝": "b1",
+    "複勝": "b1",
+    "枠連": "b3",
+    "馬連": "b4",
+    "ワイド": "b5",
+    "馬単": "b6",
+    "三連複": "b7",
+    "三連単": "b8",
+}
 API_ODDS_TYPE_MAP = {
     "単勝": "1",
     "複勝": "2",
@@ -58,6 +68,7 @@ class NetkeibaScraper:
     def scrape(self, race_url: str) -> dict[str, Any]:
         html = self._fetch_html(race_url)
         soup = BeautifulSoup(html, "lxml")
+        is_nar = self._is_nar_race_url(race_url)
 
         race_id = self._extract_race_id(race_url)
         race_date = self._extract_race_date(race_id)
@@ -69,16 +80,21 @@ class NetkeibaScraper:
         odds_updated_at: str | None = None
 
         for bet_type in BET_TYPES:
-            source_url = self._build_odds_type_url(race_id, bet_type)
+            source_url = self._build_odds_type_url(race_id, bet_type, is_nar=is_nar)
             rows: list[dict[str, str]] = []
             if race_id:
                 try:
-                    api_type = API_ODDS_TYPE_MAP.get(bet_type)
-                    if api_type:
-                        payload = self._fetch_jra_odds_payload(race_id, api_type, source_url)
-                        if odds_updated_at is None:
-                            odds_updated_at = self._extract_official_datetime(payload)
-                        rows = self._extract_odds_rows_from_api_payload(payload or {}, bet_type, entries)
+                    if is_nar:
+                        rows = self._extract_odds_rows_from_odds_page(source_url, bet_type, entries)
+                    else:
+                        api_type = API_ODDS_TYPE_MAP.get(bet_type)
+                        if api_type:
+                            payload = self._fetch_jra_odds_payload(race_id, api_type, source_url)
+                            if odds_updated_at is None:
+                                odds_updated_at = self._extract_official_datetime(payload)
+                            rows = self._extract_odds_rows_from_api_payload(payload or {}, bet_type, entries)
+                        if not rows:
+                            rows = self._extract_odds_rows_from_odds_page(source_url, bet_type, entries)
                 except Exception:
                     rows = []
             odds[bet_type] = rows
@@ -158,6 +174,11 @@ class NetkeibaScraper:
         return parse_qs(parsed.query).get("race_id", [None])[0]
 
     @staticmethod
+    def _is_nar_race_url(url: str) -> bool:
+        host = (urlparse(url).hostname or "").lower()
+        return host == "nar.netkeiba.com"
+
+    @staticmethod
     def _extract_race_date(race_id: str | None) -> str | None:
         if not race_id:
             return None
@@ -184,13 +205,130 @@ class NetkeibaScraper:
         return None
 
     @staticmethod
-    def _build_odds_type_url(race_id: str | None, bet_type: str) -> str | None:
+    def _build_odds_type_url(race_id: str | None, bet_type: str, is_nar: bool = False) -> str | None:
         if not race_id:
             return None
-        odds_type = ODDS_TYPE_MAP.get(bet_type)
+        odds_type = (ODDS_TYPE_MAP_NAR if is_nar else ODDS_TYPE_MAP).get(bet_type)
         if not odds_type:
             return None
+        if is_nar:
+            return f"https://nar.netkeiba.com/odds/?race_id={race_id}&type={odds_type}"
         return f"https://race.netkeiba.com/odds/index.html?type={odds_type}&race_id={race_id}"
+
+    def _extract_odds_rows_from_odds_page(
+        self,
+        source_url: str | None,
+        bet_type: str,
+        entries: list[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        if not source_url:
+            return []
+
+        html = self._fetch_html(source_url)
+        soup = BeautifulSoup(html, "lxml")
+
+        if bet_type in {"単勝", "複勝"}:
+            return self._extract_single_place_rows_from_page(soup, bet_type)
+        return self._extract_combo_rows_from_page(soup, bet_type)
+
+    def _extract_single_place_rows_from_page(self, soup: BeautifulSoup, bet_type: str) -> list[dict[str, str]]:
+        tables = soup.select("table.RaceOdds_HorseList_Table")
+        if not tables:
+            return []
+
+        table_index = 0 if bet_type == "単勝" else 1
+        table = tables[table_index] if len(tables) > table_index else tables[0]
+        rows: list[dict[str, str]] = []
+
+        for tr in table.select("tr")[1:]:
+            tds = tr.select("td")
+            if not tds:
+                continue
+            values = [td.get_text(" ", strip=True) for td in tds]
+            odds_value = self._normalize_odds_value(values[-1] if values else "")
+            if not odds_value:
+                continue
+
+            horse_no = ""
+            for value in values[1:4] + values[:2]:
+                text = str(value).strip()
+                if text.isdigit():
+                    horse_no = str(int(text))
+                    break
+            if not horse_no:
+                continue
+
+            horse_name = values[-2] if len(values) >= 2 else ""
+            rows.append({"馬番": horse_no, "馬名": horse_name, "オッズ": odds_value})
+
+        rows.sort(key=lambda row: int(row.get("馬番", "9999")) if row.get("馬番", "").isdigit() else 9999)
+        return rows
+
+    def _extract_combo_rows_from_page(self, soup: BeautifulSoup, bet_type: str) -> list[dict[str, str]]:
+        unordered = {"枠連", "馬連", "ワイド", "三連複"}
+        table_nodes = soup.select("table.Odds_Table")
+        if not table_nodes:
+            return []
+
+        rows: list[dict[str, str]] = []
+        combo_seen: set[tuple[str, str]] = set()
+
+        for table in table_nodes:
+            head = table.select_one("tr.col_label th")
+            left_no = str(head.get_text(" ", strip=True)) if head else ""
+
+            for tr in table.select("tr.Graph_Odds"):
+                odds_cell = tr.select_one("td.Odds")
+                if odds_cell is None:
+                    continue
+                odds_value = self._normalize_odds_value(odds_cell.get_text(" ", strip=True))
+                if not odds_value:
+                    continue
+
+                cart_item = str(odds_cell.get("cart-item") or "")
+                combo_numbers = self._extract_combo_numbers_from_cart_item(cart_item)
+
+                if not combo_numbers:
+                    tds = tr.select("td")
+                    right_no = str(tds[0].get_text(" ", strip=True)) if tds else ""
+                    if left_no.isdigit() and right_no.isdigit():
+                        combo_numbers = [str(int(left_no)), str(int(right_no))]
+
+                if not combo_numbers:
+                    continue
+
+                if bet_type in unordered:
+                    for ordered in permutations(combo_numbers, len(combo_numbers)):
+                        combo = "-".join(ordered)
+                        key = (combo, odds_value)
+                        if key in combo_seen:
+                            continue
+                        combo_seen.add(key)
+                        rows.append({"組み合わせ": combo, "オッズ": odds_value})
+                else:
+                    combo = "-".join(combo_numbers)
+                    key = (combo, odds_value)
+                    if key in combo_seen:
+                        continue
+                    combo_seen.add(key)
+                    rows.append({"組み合わせ": combo, "オッズ": odds_value})
+
+        rows.sort(key=lambda row: self._combo_sort_key(row.get("組み合わせ", "")))
+        return rows
+
+    @staticmethod
+    def _extract_combo_numbers_from_cart_item(cart_item: str) -> list[str]:
+        if not cart_item:
+            return []
+        match = re.search(r"_b\d+_c\d+_([0-9_]+)$", cart_item)
+        if not match:
+            return []
+        parts = [part for part in match.group(1).split("_") if part]
+        out: list[str] = []
+        for part in parts:
+            if part.isdigit():
+                out.append(str(int(part)))
+        return out
 
     def _fetch_jra_odds_reason(self, source_url: str | None, bet_type: str) -> str | None:
         race_id = self._extract_race_id(source_url or "")

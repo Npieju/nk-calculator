@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import sys
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,7 +52,12 @@ def health() -> dict[str, str]:
 @app.post("/v1/analyze", response_model=AnalyzeResponse)
 def analyze(payload: AnalyzeRequest) -> dict:
     race_url = str(payload.race_url).strip()
-    if "race.netkeiba.com/race/shutuba.html" not in race_url or "race_id=" not in race_url:
+    parsed = urlparse(race_url)
+    host = (parsed.hostname or "").lower()
+    is_supported_host = host in {"race.netkeiba.com", "nar.netkeiba.com"}
+    is_supported_path = parsed.path == "/race/shutuba.html"
+    has_race_id = "race_id=" in race_url
+    if not (is_supported_host and is_supported_path and has_race_id):
         raise HTTPException(status_code=400, detail="対応URLは netkeiba の出馬表ページ（/race/shutuba.html?race_id=...）です")
     try:
         return analyze_race(
