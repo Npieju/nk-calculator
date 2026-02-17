@@ -91,13 +91,10 @@
       <a href="https://race.netkeiba.com/top/" target="_blank" rel="noopener noreferrer">https://race.netkeiba.com/top/</a>
     </p>
     <details class="info card">
-      <summary>info（仕様と計算の考え方）</summary>
+      <summary>info（仕様と説明）</summary>
       <p class="muted"><strong>仕様（計算ルール）</strong></p>
       <ul class="muted" style="margin: 6px 0 10px 18px; padding: 0;">
         <li>対応URLは `race.netkeiba.com` / `nar.netkeiba.com` の出馬表URL（`/race/shutuba.html?race_id=...`）です。</li>
-        <li>単勝系・複勝系など、同じ行で比較している馬券は「当たり方が論理的に同じ」組み合わせです。</li>
-        <li>行内で強調表示される列は、理論上は比較対象より払戻期待が高い（=オッズ優位な）列です。</li>
-        <li>ただし実運用では、オッズ変動と購入単位（通常100円）による丸めで理論どおりにならない場合があります。</li>
         <li>合成オッズは、対象買い目の確率和から逆算します（合成オッズ = 1 / Σ(1 / 各オッズ)）。</li>
         <li>レンジ表記オッズ（例: 10.5 - 12.8）は平均値で計算します。</li>
         <li>0倍は計算上 999999倍として扱います。</li>
@@ -105,6 +102,9 @@
       </ul>
       <p class="muted"><strong>説明（読み方と使いどころ）</strong></p>
       <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
+        <li>単勝系・複勝系など、同じ行で比較している馬券は「当たり方が論理的に同じ」組み合わせです。</li>
+        <li>行内で強調表示される列は、理論上は比較対象より払戻期待が高い（=オッズ優位な）列です。</li>
+        <li>ただし実運用では、オッズ変動と購入単位（通常100円）による丸めで理論どおりにならない場合があります。</li>
         <li>差異率が大きい行は、実際には極端な穴馬を含むことが多く、単純に「買い得」とは限りません。</li>
         <li>この指標は、期待値探しというより「消し馬をどう置くか」を検討するために使うのが実務的です。</li>
         <li>人気馬を消し馬にすると連勝系の合成オッズが跳ねやすく、穴馬を消すと単勝系が相対的に優位になりやすい傾向があります。</li>
