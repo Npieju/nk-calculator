@@ -605,7 +605,31 @@ class NetkeibaScraper:
 
     @staticmethod
     def _normalize_odds_value(value: str) -> str:
-        return value.replace(",", "").strip()
+        text = str(value).replace(",", "").strip()
+        if not text:
+            return text
+
+        if "-" in text:
+            parts = [part.strip() for part in text.split("-")]
+            normalized_parts = [NetkeibaScraper._normalize_single_odds_token(part) for part in parts]
+            return " - ".join(normalized_parts)
+
+        return NetkeibaScraper._normalize_single_odds_token(text)
+
+    @staticmethod
+    def _normalize_single_odds_token(token: str) -> str:
+        text = str(token).strip()
+        if not text:
+            return text
+        try:
+            value = float(text)
+            if value <= 0:
+                return "999999"
+            if text.isdigit():
+                return str(int(value))
+            return text
+        except ValueError:
+            return text
 
     @staticmethod
     def _parse_numeric_odds(value: str) -> float | None:
