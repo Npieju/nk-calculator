@@ -100,13 +100,13 @@
         <li>0倍（地方での未得票馬券など）は計算上 999999倍として扱います。</li>
         <li>差異率は、基準列（左端）に対する最大列の比率で計算します。</li>
       </ul>
-      <p class="muted"><strong>説明（読み方と使いどころ）</strong></p>
+      <p class="muted"><strong>説明（読み方）</strong></p>
       <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
-        <li>単勝系・複勝系など、同じ行で比較している馬券は「当たり方が論理的に同じ」組み合わせです。</li>
+        <li>単勝系・複勝系などにて同じ行で比較している馬券は「当たり方が論理的に同じ」組み合わせです。</li>
         <li>差異率が大きい行は、実際には極端な穴馬を含むことが多く、単純に「買い得」とは限りません。</li>
-        <li>人気馬を消し馬にすると連勝系の合成オッズが跳ねやすく、穴馬を消すと単勝系が相対的に優位になりやすい傾向があります。</li>
+        <li>人気馬を消し馬にすると連勝系の合成オッズが跳ねやすく、穴馬を消すと単勝系が相対的に優位になります。</li>
       </ul>
-      <p class="muted" style="margin-top: 8px;"><strong>合成オッズの説明</strong></p>
+      <p class="muted" style="margin-top: 8px;"><strong>合成オッズ</strong></p>
       <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
         <li>固定オッズを前提に、比較先の合成オッズが基準より高い場合は、比例配分（1/オッズ配分）によって「任意の的中結果で基準の払戻しを上回る」買い方を理論上構成できます。</li>
         <li>具体例（単勝1点 vs 馬単8点）: 単勝A=3.6、馬単は A→B/C/D/E/F/G/H/I の8点で、オッズを 18/22/25/28/35/40/55/70 とします。</li>
@@ -457,7 +457,7 @@
           return ["trifecta_top13_both_any_second_odds", "trifecta_bottom23_both_any_first_odds"];
         }
         if (tableKey === "c4") {
-          return ["trifecta_first_all_flow_odds", "trifecta_second_all_flow_odds"];
+          return ["trifecta_second_all_flow_odds", "trifecta_first_all_flow_odds"];
         }
         return [];
       }
