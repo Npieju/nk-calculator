@@ -6,7 +6,7 @@ from itertools import permutations
 import json
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -227,12 +227,53 @@ class NetkeibaScraper:
         if not source_url:
             return []
 
+        parsed = urlparse(source_url)
+        is_nar_odds = (parsed.hostname or "").lower() == "nar.netkeiba.com"
+
+        if is_nar_odds and bet_type in {"三連複", "三連単"}:
+            return self._extract_three_way_rows_from_nar_pages(source_url, bet_type)
+
         html = self._fetch_html(source_url)
         soup = BeautifulSoup(html, "lxml")
 
         if bet_type in {"単勝", "複勝"}:
             return self._extract_single_place_rows_from_page(soup, bet_type)
         return self._extract_combo_rows_from_page(soup, bet_type)
+
+    def _extract_three_way_rows_from_nar_pages(self, source_url: str, bet_type: str) -> list[dict[str, str]]:
+        base_html = self._fetch_html(source_url)
+        base_soup = BeautifulSoup(base_html, "lxml")
+
+        axis_values = [
+            str(option.get("value") or "").strip()
+            for option in base_soup.select("#list_select_horse option")
+            if str(option.get("value") or "").strip().isdigit()
+        ]
+        axis_values = list(dict.fromkeys(axis_values))
+        if not axis_values:
+            return self._extract_combo_rows_from_page(base_soup, bet_type)
+
+        all_rows: list[dict[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+
+        for axis in axis_values:
+            axis_url = self._set_query_params(source_url, {"housiki": "c0", "jiku": axis})
+            html = self._fetch_html(axis_url)
+            soup = BeautifulSoup(html, "lxml")
+            rows = self._extract_combo_rows_from_page(soup, bet_type)
+            for row in rows:
+                combo = str(row.get("組み合わせ", "")).strip()
+                odds = str(row.get("オッズ", "")).strip()
+                if not combo or not odds:
+                    continue
+                key = (combo, odds)
+                if key in seen:
+                    continue
+                seen.add(key)
+                all_rows.append(row)
+
+        all_rows.sort(key=lambda row: self._combo_sort_key(row.get("組み合わせ", "")))
+        return all_rows
 
     def _extract_single_place_rows_from_page(self, soup: BeautifulSoup, bet_type: str) -> list[dict[str, str]]:
         tables = soup.select("table.RaceOdds_HorseList_Table")
@@ -332,6 +373,15 @@ class NetkeibaScraper:
             if part.isdigit():
                 out.append(str(int(part)))
         return out
+
+    @staticmethod
+    def _set_query_params(url: str, updates: dict[str, str]) -> str:
+        parsed = urlparse(url)
+        query = parse_qs(parsed.query)
+        for key, value in updates.items():
+            query[key] = [value]
+        new_query = urlencode(query, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 
     def _fetch_jra_odds_reason(self, source_url: str | None, bet_type: str) -> str | None:
         race_id = self._extract_race_id(source_url or "")
