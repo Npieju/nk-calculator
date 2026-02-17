@@ -12,7 +12,8 @@ import requests
 from bs4 import BeautifulSoup
 
 
-BET_TYPES = ["単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "三連複", "三連単"]
+BET_TYPES_JRA = ["単勝", "複勝", "枠連", "馬連", "ワイド", "馬単", "三連複", "三連単"]
+BET_TYPES_NAR = ["単勝", "複勝", "枠連", "枠単", "馬連", "ワイド", "馬単", "三連複", "三連単"]
 ODDS_TYPE_MAP = {
     "単勝": "b1",
     "複勝": "b1",
@@ -27,6 +28,7 @@ ODDS_TYPE_MAP_NAR = {
     "単勝": "b1",
     "複勝": "b1",
     "枠連": "b3",
+    "枠単": "b9",
     "馬連": "b4",
     "ワイド": "b5",
     "馬単": "b6",
@@ -69,17 +71,18 @@ class NetkeibaScraper:
         html = self._fetch_html(race_url)
         soup = BeautifulSoup(html, "lxml")
         is_nar = self._is_nar_race_url(race_url)
+        target_bet_types = BET_TYPES_NAR if is_nar else BET_TYPES_JRA
 
         race_id = self._extract_race_id(race_url)
         race_date = self._extract_race_date(race_id)
         race_name = self._extract_race_name(soup)
         entries = self._extract_race_entries(soup)
 
-        odds: dict[str, Any] = {bet_type: [] for bet_type in BET_TYPES}
+        odds: dict[str, Any] = {bet_type: [] for bet_type in target_bet_types}
         odds_status: dict[str, Any] = {}
         odds_updated_at: str | None = None
 
-        for bet_type in BET_TYPES:
+        for bet_type in target_bet_types:
             source_url = self._build_odds_type_url(race_id, bet_type, is_nar=is_nar)
             rows: list[dict[str, str]] = []
             if race_id:
