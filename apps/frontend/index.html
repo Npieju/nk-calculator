@@ -41,6 +41,9 @@
       .excluded-picker { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; margin-top: 6px; max-width: 480px; }
       .excluded-item { display: flex; align-items: center; gap: 4px; font-size: 12px; }
       .excluded-item input { width: auto; padding: 0; }
+      details.info { margin: 8px 0 12px; }
+      details.info > summary { cursor: pointer; font-weight: 600; }
+      details.info .muted { margin: 6px 0; }
       th.col-clip {
         white-space: pre-line;
         line-height: 1.15;
@@ -87,6 +90,14 @@
       レース選択はこちらから:
       <a href="https://race.netkeiba.com/top/" target="_blank" rel="noopener noreferrer">https://race.netkeiba.com/top/</a>
     </p>
+    <details class="info card">
+      <summary>info（仕様と計算の考え方）</summary>
+      <p class="muted">この画面は「同じ当たり方になる買い方」を横比較するための補助です。比較列はオッズを合成して同じ軸で見ています。</p>
+      <p class="muted">合成オッズは、対象買い目の確率和から逆算しています。式: 合成オッズ = 1 / Σ(1 / 各オッズ)。</p>
+      <p class="muted">オッズのレンジ表記（例: 10.5 - 12.8）は平均値として扱います。0倍は計算上 999999倍として扱います。</p>
+      <p class="muted">合成オッズどおりに資金配分するなら、予算Bに対して各買い目の金額を「(1/オッズ) 比例」で配分します。式: 金額_i = B × (1/オッズ_i) / Σ(1/オッズ_j)。</p>
+      <p class="muted">実際の購入単位（通常100円）に丸めるとズレるため、最後に合計金額を微調整してください。</p>
+    </details>
     <div class="row">
       <label>
         レースURL
