@@ -171,6 +171,8 @@
       let extendedStates = {};
       let lastAnalyzeData = null;
       const scrapedCacheByUrl = new Map();
+      const CLIENT_CACHE_STORAGE_KEY = "nk_calculator_scraped_cache_v1";
+      const CLIENT_CACHE_MAX_ENTRIES = 20;
       const EXPORT_SECTIONS = [
         { key: "all_market_compare", title: "全券種比較（全流し合成オッズ）" },
         { key: "compare1", title: "単勝系: 単勝 / 馬単1着流し / 三連単1着流し" },
@@ -281,6 +283,49 @@
           return parsed.toString();
         } catch {
           return text;
+        }
+      }
+
+      function saveClientScrapedCache() {
+        try {
+          const entries = Array.from(scrapedCacheByUrl.entries()).map(([key, data]) => ({ key, data }));
+          sessionStorage.setItem(CLIENT_CACHE_STORAGE_KEY, JSON.stringify({ entries }));
+        } catch {
+          // noop
+        }
+      }
+
+      function putClientScrapedCache(key, data) {
+        if (!key) return;
+        if (scrapedCacheByUrl.has(key)) {
+          scrapedCacheByUrl.delete(key);
+        }
+        scrapedCacheByUrl.set(key, data);
+        while (scrapedCacheByUrl.size > CLIENT_CACHE_MAX_ENTRIES) {
+          const oldestKey = scrapedCacheByUrl.keys().next().value;
+          scrapedCacheByUrl.delete(oldestKey);
+        }
+        saveClientScrapedCache();
+      }
+
+      function loadClientScrapedCache() {
+        try {
+          const raw = sessionStorage.getItem(CLIENT_CACHE_STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          const entries = Array.isArray(parsed?.entries) ? parsed.entries : [];
+          for (const entry of entries) {
+            const key = String(entry?.key || "").trim();
+            const data = entry?.data;
+            if (!key || !data || typeof data !== "object") continue;
+            scrapedCacheByUrl.set(key, data);
+          }
+          while (scrapedCacheByUrl.size > CLIENT_CACHE_MAX_ENTRIES) {
+            const oldestKey = scrapedCacheByUrl.keys().next().value;
+            scrapedCacheByUrl.delete(oldestKey);
+          }
+        } catch {
+          // noop
         }
       }
 
@@ -1782,11 +1827,11 @@
               throw new Error(data?.detail || `HTTP ${resp.status}`);
             }
             if (cacheKey) {
-              scrapedCacheByUrl.set(cacheKey, data);
+              putClientScrapedCache(cacheKey, data);
             }
             const canonicalKey = normalizeRaceUrlForClientCache(data?.race?.race_url || "");
             if (canonicalKey) {
-              scrapedCacheByUrl.set(canonicalKey, data);
+              putClientScrapedCache(canonicalKey, data);
             }
           }
 
@@ -1935,6 +1980,7 @@
         }
       }
 
+      loadClientScrapedCache();
       initExcludedPicker();
       window.addEventListener("resize", () => {
         syncAllSplitRowHeights();
