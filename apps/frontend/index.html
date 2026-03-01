@@ -21,6 +21,8 @@
       .err { color: #b00020; }
       .hl-high { background: #fff4cc; font-weight: 700; }
       .hl-low { color: #9ca3af; }
+      .hl-high-2nd { background: #dbeafe; font-weight: 700; }
+      .hl-low-2nd { color: #6b7280; }
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .sticky-col {
         position: sticky;
@@ -1561,11 +1563,24 @@
             const highCol = numeric.length ? numeric.reduce((a, b) => (a.value >= b.value ? a : b)).col : null;
             const lowCol = numeric.length ? numeric.reduce((a, b) => (a.value <= b.value ? a : b)).col : null;
 
+            let secondHighCol = null;
+            let secondLowCol = null;
+            if (showExtendedPatterns && state.key === "c1") {
+              const exactaSecond = toNumber(row?.exacta_second_flow_odds);
+              const trifectaSecond = toNumber(row?.trifecta_second_flow_odds);
+              if (exactaSecond !== null && trifectaSecond !== null && exactaSecond !== trifectaSecond) {
+                secondHighCol = exactaSecond > trifectaSecond ? "exacta_second_flow_odds" : "trifecta_second_flow_odds";
+                secondLowCol = secondHighCol === "exacta_second_flow_odds" ? "trifecta_second_flow_odds" : "exacta_second_flow_odds";
+              }
+            }
+
             const tds = focusedDisplayColumns
               .map((c) => {
                 let cls = "";
                 if (c === highCol) cls = "hl-high";
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
+                if (c === secondHighCol) cls = `${cls} hl-high-2nd`.trim();
+                else if (c === secondLowCol) cls = `${cls} hl-low-2nd`.trim();
                 if (stickyHorseColumn === c) cls = `${cls} sticky-col`.trim();
                 cls = `${cls} ${getColumnClass(c)}`.trim();
                 return `<td class="${cls}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`;
