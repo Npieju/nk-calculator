@@ -170,6 +170,7 @@
       let showExtendedPatterns = false;
       let extendedStates = {};
       let lastAnalyzeData = null;
+      const scrapedCacheByUrl = new Map();
       const EXPORT_SECTIONS = [
         { key: "all_market_compare", title: "全券種比較（全流し合成オッズ）" },
         { key: "compare1", title: "単勝系: 単勝 / 馬単1着流し / 三連単1着流し" },
@@ -266,6 +267,21 @@
         const flag = !!enabled;
         if (exportCsvBtn) exportCsvBtn.disabled = !flag;
         if (exportHtmlBtn) exportHtmlBtn.disabled = !flag;
+      }
+
+      function normalizeRaceUrlForClientCache(rawUrl) {
+        const text = String(rawUrl ?? "").trim();
+        if (!text) return "";
+        try {
+          const parsed = new URL(text);
+          if (String(parsed.hostname || "").toLowerCase() === "race.sp.netkeiba.com") {
+            parsed.hostname = "race.netkeiba.com";
+          }
+          parsed.pathname = `/${String(parsed.pathname || "").replace(/^\/+/, "")}`;
+          return parsed.toString();
+        } catch {
+          return text;
+        }
       }
 
       function getExportSections(data) {
@@ -1741,6 +1757,7 @@
         const raceUrl = document.getElementById("raceUrl").value.trim();
         const excluded = getExcludedHorses();
         const forceRefresh = document.getElementById("forceRefresh")?.checked || false;
+        const cacheKey = normalizeRaceUrlForClientCache(raceUrl);
 
         metaBox.innerHTML = "実行中...";
         statusBox.innerHTML = "";
@@ -1749,19 +1766,35 @@
         setExportButtonsEnabled(false);
 
         try {
-          const resp = await fetch(`${API_BASE_URL}/v1/analyze`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ race_url: raceUrl, excluded_horses: excluded, force_refresh: forceRefresh }),
-          });
-          const data = await resp.json();
-          if (!resp.ok) {
-            throw new Error(data?.detail || `HTTP ${resp.status}`);
+          let data;
+          let usedClientCache = false;
+          if (!forceRefresh && cacheKey && scrapedCacheByUrl.has(cacheKey)) {
+            data = scrapedCacheByUrl.get(cacheKey);
+            usedClientCache = true;
+          } else {
+            const resp = await fetch(`${API_BASE_URL}/v1/analyze`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ race_url: raceUrl, excluded_horses: excluded, force_refresh: forceRefresh }),
+            });
+            data = await resp.json();
+            if (!resp.ok) {
+              throw new Error(data?.detail || `HTTP ${resp.status}`);
+            }
+            if (cacheKey) {
+              scrapedCacheByUrl.set(cacheKey, data);
+            }
+            const canonicalKey = normalizeRaceUrlForClientCache(data?.race?.race_url || "");
+            if (canonicalKey) {
+              scrapedCacheByUrl.set(canonicalKey, data);
+            }
           }
 
           const race = data.race || {};
           const oddsTimestamp = race.odds_updated_at || race.source_fetched_at || "-";
-          const cacheText = race.cache_hit
+          const cacheText = usedClientCache
+            ? "フロントキャッシュ利用（同一URLを再計算）"
+            : race.cache_hit
             ? `キャッシュ利用（保存: ${formatDateTimeText(race.cache_stored_at)} / 経過: ${escapeHtml(race.cache_age_seconds)}秒）`
             : "最新取得（スクレイプ実行）";
           const refreshText = race.is_past_race
