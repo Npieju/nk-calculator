@@ -384,6 +384,614 @@
         downloadTextFile(html, `nk-calculator_${raceId}.html`, "text/html;charset=utf-8");
       }
 
+      function normalizeHorseNo(value) {
+        const text = String(value ?? "").trim();
+        if (!text) return "";
+        if (/^\d+$/.test(text)) return String(Number(text));
+        return text;
+      }
+
+      function parseOddsValue(value) {
+        if (value === null || value === undefined) return null;
+        const text = String(value).trim();
+        if (!text || text === "-" || text === "--" || text === "---.-") return null;
+        const normalized = text.replaceAll(",", "").replaceAll("〜", "-");
+        if (normalized.includes("-")) {
+          const nums = normalized
+            .split("-")
+            .map((part) => Number(part.trim()))
+            .filter((num) => Number.isFinite(num));
+          if (!nums.length) return null;
+          return nums.reduce((acc, num) => acc + num, 0) / nums.length;
+        }
+        const n = Number(normalized);
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function comboNumbers(combo) {
+        const text = String(combo ?? "").trim();
+        if (!text) return [];
+        return text.split("-").map((part) => normalizeHorseNo(part)).filter(Boolean);
+      }
+
+      function syntheticOdds(oddsList) {
+        const probs = (oddsList || []).map((odd) => Number(odd)).filter((odd) => Number.isFinite(odd) && odd > 0).map((odd) => 1 / odd);
+        const total = probs.reduce((acc, num) => acc + num, 0);
+        return total > 0 ? 1 / total : null;
+      }
+
+      function round4(value) {
+        if (value === null || value === undefined || !Number.isFinite(value)) return null;
+        return Math.round(value * 10000) / 10000;
+      }
+
+      function horseSortKey(horseNo) {
+        return /^\d+$/.test(String(horseNo)) ? Number(horseNo) : 9999;
+      }
+
+      function horsePairSort(a, b) {
+        const keyA = horseSortKey(a);
+        const keyB = horseSortKey(b);
+        if (keyA !== keyB) return keyA - keyB;
+        return String(a).localeCompare(String(b), "ja");
+      }
+
+      function toHorseNoValue(horseNo) {
+        return /^\d+$/.test(String(horseNo)) ? Number(horseNo) : horseNo;
+      }
+
+      function addSpreadColumn(rows, oddsColumns) {
+        return (rows || []).map((row) => {
+          const base = toNumber(row?.[oddsColumns[0]]);
+          const values = oddsColumns.slice(1).map((key) => toNumber(row?.[key])).filter((num) => num !== null);
+          const maxValue = values.length ? Math.max(...values) : null;
+          const spread = base !== null && base > 0 && maxValue !== null ? round4((maxValue / base) * 100) : null;
+          return { ...row, spread };
+        });
+      }
+
+      function combineSyntheticMaps(...maps) {
+        const keys = new Set();
+        for (const map of maps) {
+          for (const key of Object.keys(map || {})) keys.add(key);
+        }
+        const out = {};
+        for (const key of keys) {
+          const odds = maps.map((map) => map?.[key]).filter((value) => value !== null && value !== undefined && value > 0);
+          out[key] = syntheticOdds(odds);
+        }
+        return out;
+      }
+
+      function collectHorseFlowOdds(rows, horses, excludedSet, mode, position) {
+        const data = Object.fromEntries(horses.map((horse) => [horse, []]));
+        const seenUnordered = new Set();
+        for (const row of rows || []) {
+          const combo = comboNumbers(row?.["組み合わせ"]);
+          if (!combo.length || combo.some((item) => excludedSet.has(item))) continue;
+          if (mode === "contains") {
+            const unorderedKey = [...combo].sort(horsePairSort).join("-");
+            if (seenUnordered.has(unorderedKey)) continue;
+            seenUnordered.add(unorderedKey);
+          }
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          let targets = [];
+          if (mode === "contains") {
+            targets = combo.filter((horse) => Object.hasOwn(data, horse));
+          } else if (mode === "position" && Number.isInteger(position) && combo.length > position && Object.hasOwn(data, combo[position])) {
+            targets = [combo[position]];
+          }
+          for (const horse of targets) data[horse].push(odd);
+        }
+        const out = {};
+        for (const horse of horses) out[horse] = syntheticOdds(data[horse]);
+        return out;
+      }
+
+      function collectHorseFlowOddsFirstColumn(rows, horses, excludedSet, comboSize) {
+        const data = Object.fromEntries(horses.map((horse) => [horse, []]));
+        const seenKeys = new Set();
+        for (const row of rows || []) {
+          const combo = comboNumbers(row?.["組み合わせ"]);
+          if (combo.length !== comboSize || combo.some((item) => excludedSet.has(item))) continue;
+          const first = combo[0];
+          if (!Object.hasOwn(data, first)) continue;
+          const key = [first, ...combo.slice(1).sort(horsePairSort)].join("-");
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          data[first].push(odd);
+        }
+        const out = {};
+        for (const horse of horses) out[horse] = syntheticOdds(data[horse]);
+        return out;
+      }
+
+      function buildHorseMaster(entries, tanshoRows, excludedSet) {
+        const rows = [];
+        const hasTanshoHorseCols = (tanshoRows || []).some((row) => row?.["馬番"] !== undefined && row?.["馬名"] !== undefined);
+        if (hasTanshoHorseCols) {
+          for (const row of tanshoRows || []) {
+            const horseNo = normalizeHorseNo(row?.["馬番"]);
+            if (!horseNo || excludedSet.has(horseNo)) continue;
+            rows.push({ horse_no: horseNo, horse_name: String(row?.["馬名"] ?? "").trim() });
+          }
+        } else {
+          for (const row of entries || []) {
+            const horseNo = normalizeHorseNo(row?.["馬番"] ?? row?.col_2 ?? "");
+            const horseName = String(row?.["馬名"] ?? row?.col_4 ?? "").trim();
+            if (!horseNo || !horseName || excludedSet.has(horseNo)) continue;
+            rows.push({ horse_no: horseNo, horse_name: horseName });
+          }
+        }
+        const seen = new Set();
+        const deduped = [];
+        for (const row of rows) {
+          if (seen.has(row.horse_no)) continue;
+          seen.add(row.horse_no);
+          deduped.push(row);
+        }
+        deduped.sort((a, b) => horsePairSort(a.horse_no, b.horse_no));
+        return deduped;
+      }
+
+      function pairKey(a, b) {
+        return [a, b].sort(horsePairSort).join("|");
+      }
+
+      function trioKey(a, b, c) {
+        return [a, b, c].sort(horsePairSort).join("|");
+      }
+
+      function buildPairCompare(umarenRows, umatanRows, sanrentanRows, horseNameMap, horses, excludedSet) {
+        const umarenDirMap = new Map();
+        for (const row of umarenRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 2 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          umarenDirMap.set(`${nums[0]}|${nums[1]}`, odd);
+          umarenDirMap.set(`${nums[1]}|${nums[0]}`, odd);
+        }
+
+        const umatanDirMap = new Map();
+        for (const row of umatanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 2 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          umatanDirMap.set(`${nums[0]}|${nums[1]}`, odd);
+        }
+
+        const sanrentanMap = new Map();
+        for (const row of sanrentanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          sanrentanMap.set(`${nums[0]}|${nums[1]}|${nums[2]}`, odd);
+        }
+
+        const allPairs = new Set([...umarenDirMap.keys(), ...umatanDirMap.keys()]);
+        const pairRows = [];
+        for (const key of allPairs) {
+          const [a, b] = key.split("|");
+          const ab = umatanDirMap.get(`${a}|${b}`);
+          const ba = umatanDirMap.get(`${b}|${a}`);
+          const synthUmatan = syntheticOdds([ab, ba].filter((value) => value !== undefined));
+          const umarenOdd = umarenDirMap.get(`${a}|${b}`);
+
+          const thirdOdds = [];
+          for (const c of horses) {
+            if (c === a || c === b) continue;
+            const abC = sanrentanMap.get(`${a}|${b}|${c}`);
+            const baC = sanrentanMap.get(`${b}|${a}|${c}`);
+            if (abC !== undefined) thirdOdds.push(abC);
+            if (baC !== undefined) thirdOdds.push(baC);
+          }
+
+          pairRows.push({
+            horse_no_a: toHorseNoValue(a),
+            horse_name_a: horseNameMap[a] || "",
+            horse_no_b: toHorseNoValue(b),
+            horse_name_b: horseNameMap[b] || "",
+            quinella_odds: round4(umarenOdd),
+            exacta_both_flow_odds: round4(synthUmatan),
+            trifecta_top2_both_any_third_odds: round4(syntheticOdds(thirdOdds)),
+          });
+        }
+
+        pairRows.sort((x, y) => {
+          const r1 = horsePairSort(String(x.horse_no_a), String(y.horse_no_a));
+          if (r1 !== 0) return r1;
+          return horsePairSort(String(x.horse_no_b), String(y.horse_no_b));
+        });
+        return addSpreadColumn(pairRows, ["quinella_odds", "exacta_both_flow_odds", "trifecta_top2_both_any_third_odds"]);
+      }
+
+      function buildExactaCompare(umatanRows, sanrentanRows, horseNameMap, horses, excludedSet) {
+        const umatanDirMap = new Map();
+        for (const row of umatanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 2 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          umatanDirMap.set(`${nums[0]}|${nums[1]}`, odd);
+        }
+        const sanrentanMap = new Map();
+        for (const row of sanrentanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          sanrentanMap.set(`${nums[0]}|${nums[1]}|${nums[2]}`, odd);
+        }
+
+        const rows = [];
+        const keys = [...umatanDirMap.keys()].sort((k1, k2) => {
+          const [a1, b1] = k1.split("|");
+          const [a2, b2] = k2.split("|");
+          const r1 = horsePairSort(a1, a2);
+          if (r1 !== 0) return r1;
+          return horsePairSort(b1, b2);
+        });
+
+        for (const key of keys) {
+          const [a, b] = key.split("|");
+          const thirdOdds = [];
+          for (const c of horses) {
+            if (c === a || c === b) continue;
+            const value = sanrentanMap.get(`${a}|${b}|${c}`);
+            if (value !== undefined) thirdOdds.push(value);
+          }
+          rows.push({
+            horse_no_a: toHorseNoValue(a),
+            horse_name_a: horseNameMap[a] || "",
+            horse_no_b: toHorseNoValue(b),
+            horse_name_b: horseNameMap[b] || "",
+            exacta_odds: round4(umatanDirMap.get(key)),
+            trifecta_third_all_flow_odds: round4(syntheticOdds(thirdOdds)),
+          });
+        }
+
+        return addSpreadColumn(rows, ["exacta_odds", "trifecta_third_all_flow_odds"]);
+      }
+
+      function buildPairExtensionCompare(umarenRows, sanrentanRows, horseNameMap, horses, excludedSet) {
+        const umarenMap = new Map();
+        for (const row of umarenRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 2 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          umarenMap.set(pairKey(nums[0], nums[1]), odd);
+        }
+        const sanrentanMap = new Map();
+        for (const row of sanrentanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          sanrentanMap.set(`${nums[0]}|${nums[1]}|${nums[2]}`, odd);
+        }
+
+        const rows = [];
+        for (let i = 0; i < horses.length; i++) {
+          for (let j = i + 1; j < horses.length; j++) {
+            const a = horses[i];
+            const b = horses[j];
+            const top13 = [];
+            const bottom23 = [];
+            for (const c of horses) {
+              if (c === a || c === b) continue;
+              for (const key of [`${a}|${c}|${b}`, `${b}|${c}|${a}`]) {
+                const value = sanrentanMap.get(key);
+                if (value !== undefined) top13.push(value);
+              }
+              for (const key of [`${c}|${a}|${b}`, `${c}|${b}|${a}`]) {
+                const value = sanrentanMap.get(key);
+                if (value !== undefined) bottom23.push(value);
+              }
+            }
+            rows.push({
+              horse_no_a: toHorseNoValue(a),
+              horse_name_a: horseNameMap[a] || "",
+              horse_no_b: toHorseNoValue(b),
+              horse_name_b: horseNameMap[b] || "",
+              quinella_odds: round4(umarenMap.get(pairKey(a, b))),
+              trifecta_top13_both_any_second_odds: round4(syntheticOdds(top13)),
+              trifecta_bottom23_both_any_first_odds: round4(syntheticOdds(bottom23)),
+            });
+          }
+        }
+        return rows;
+      }
+
+      function buildExactaExtensionCompare(umatanRows, sanrentanRows, horseNameMap, horses, excludedSet) {
+        const umatanDirMap = new Map();
+        for (const row of umatanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 2 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          umatanDirMap.set(`${nums[0]}|${nums[1]}`, odd);
+        }
+        const sanrentanMap = new Map();
+        for (const row of sanrentanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          sanrentanMap.set(`${nums[0]}|${nums[1]}|${nums[2]}`, odd);
+        }
+
+        const rows = [];
+        const keys = [...umatanDirMap.keys()].sort((k1, k2) => {
+          const [a1, b1] = k1.split("|");
+          const [a2, b2] = k2.split("|");
+          const r1 = horsePairSort(a1, a2);
+          if (r1 !== 0) return r1;
+          return horsePairSort(b1, b2);
+        });
+        for (const key of keys) {
+          const [a, b] = key.split("|");
+          const firstAll = [];
+          const secondAll = [];
+          for (const c of horses) {
+            if (c === a || c === b) continue;
+            const v1 = sanrentanMap.get(`${c}|${a}|${b}`);
+            const v2 = sanrentanMap.get(`${a}|${c}|${b}`);
+            if (v1 !== undefined) firstAll.push(v1);
+            if (v2 !== undefined) secondAll.push(v2);
+          }
+          rows.push({
+            horse_no_a: toHorseNoValue(a),
+            horse_name_a: horseNameMap[a] || "",
+            horse_no_b: toHorseNoValue(b),
+            horse_name_b: horseNameMap[b] || "",
+            exacta_odds: round4(umatanDirMap.get(key)),
+            trifecta_first_all_flow_odds: round4(syntheticOdds(firstAll)),
+            trifecta_second_all_flow_odds: round4(syntheticOdds(secondAll)),
+          });
+        }
+        return rows;
+      }
+
+      function buildWideCompare(wideRows, sanrenpukuRows, sanrentanRows, horseNameMap, horses, excludedSet) {
+        const wideMap = new Map();
+        for (const row of wideRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 2 || nums.some((num) => excludedSet.has(num))) continue;
+          const key = pairKey(nums[0], nums[1]);
+          if (wideMap.has(key)) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          wideMap.set(key, odd);
+        }
+
+        const trioAxisMap = new Map();
+        const seenTrios = new Set();
+        for (const row of sanrenpukuRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const key = trioKey(nums[0], nums[1], nums[2]);
+          if (seenTrios.has(key)) continue;
+          seenTrios.add(key);
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          const parts = key.split("|");
+          const pairs = [pairKey(parts[0], parts[1]), pairKey(parts[0], parts[2]), pairKey(parts[1], parts[2])];
+          for (const pair of pairs) {
+            const list = trioAxisMap.get(pair) || [];
+            list.push(odd);
+            trioAxisMap.set(pair, list);
+          }
+        }
+
+        const trifectaMultiMap = new Map();
+        for (const row of sanrentanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          const pairs = [pairKey(nums[0], nums[1]), pairKey(nums[0], nums[2]), pairKey(nums[1], nums[2])];
+          for (const pair of pairs) {
+            const list = trifectaMultiMap.get(pair) || [];
+            list.push(odd);
+            trifectaMultiMap.set(pair, list);
+          }
+        }
+
+        const rows = [];
+        for (let i = 0; i < horses.length; i++) {
+          for (let j = i + 1; j < horses.length; j++) {
+            const a = horses[i];
+            const b = horses[j];
+            const key = pairKey(a, b);
+            rows.push({
+              horse_no_a: toHorseNoValue(a),
+              horse_name_a: horseNameMap[a] || "",
+              horse_no_b: toHorseNoValue(b),
+              horse_name_b: horseNameMap[b] || "",
+              wide_odds: round4(wideMap.get(key)),
+              trio_two_head_flow_odds: round4(syntheticOdds(trioAxisMap.get(key) || [])),
+              trifecta_two_head_multi_odds: round4(syntheticOdds(trifectaMultiMap.get(key) || [])),
+            });
+          }
+        }
+        return addSpreadColumn(rows, ["wide_odds", "trio_two_head_flow_odds", "trifecta_two_head_multi_odds"]);
+      }
+
+      function buildTrioCompare(sanrenpukuRows, sanrentanRows, horseNameMap, horses, excludedSet) {
+        const trioMap = new Map();
+        for (const row of sanrenpukuRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const key = trioKey(nums[0], nums[1], nums[2]);
+          if (trioMap.has(key)) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          trioMap.set(key, odd);
+        }
+
+        const trifectaBoxMap = new Map();
+        for (const row of sanrentanRows || []) {
+          const nums = comboNumbers(row?.["組み合わせ"]);
+          if (nums.length !== 3 || nums.some((num) => excludedSet.has(num))) continue;
+          const odd = parseOddsValue(row?.["オッズ"]);
+          if (odd === null || odd <= 0) continue;
+          const key = trioKey(nums[0], nums[1], nums[2]);
+          const list = trifectaBoxMap.get(key) || [];
+          list.push(odd);
+          trifectaBoxMap.set(key, list);
+        }
+
+        const rows = [];
+        for (let i = 0; i < horses.length; i++) {
+          for (let j = i + 1; j < horses.length; j++) {
+            for (let k = j + 1; k < horses.length; k++) {
+              const a = horses[i];
+              const b = horses[j];
+              const c = horses[k];
+              const key = trioKey(a, b, c);
+              rows.push({
+                horse_no_a: toHorseNoValue(a),
+                horse_name_a: horseNameMap[a] || "",
+                horse_no_b: toHorseNoValue(b),
+                horse_name_b: horseNameMap[b] || "",
+                horse_no_c: toHorseNoValue(c),
+                horse_name_c: horseNameMap[c] || "",
+                trio_odds: round4(trioMap.get(key)),
+                trifecta_three_head_box_odds: round4(syntheticOdds(trifectaBoxMap.get(key) || [])),
+              });
+            }
+          }
+        }
+        return addSpreadColumn(rows, ["trio_odds", "trifecta_three_head_box_odds"]);
+      }
+
+      function buildComparisonsFromScrapedData(odds, entries, excludedHorses) {
+        const excludedSet = new Set((excludedHorses || []).map((item) => normalizeHorseNo(item)).filter(Boolean));
+
+        const tanshoRows = Array.isArray(odds?.["単勝"]) ? odds["単勝"] : [];
+        const fukushoRows = Array.isArray(odds?.["複勝"]) ? odds["複勝"] : [];
+        const umarenRows = Array.isArray(odds?.["馬連"]) ? odds["馬連"] : [];
+        const wideRows = Array.isArray(odds?.["ワイド"]) ? odds["ワイド"] : [];
+        const umatanRows = Array.isArray(odds?.["馬単"]) ? odds["馬単"] : [];
+        const sanrenpukuRows = Array.isArray(odds?.["三連複"]) ? odds["三連複"] : [];
+        const sanrentanRows = Array.isArray(odds?.["三連単"]) ? odds["三連単"] : [];
+
+        const tanshoMap = {};
+        for (const row of tanshoRows) {
+          const horseNo = normalizeHorseNo(row?.["馬番"]);
+          if (!horseNo) continue;
+          tanshoMap[horseNo] = parseOddsValue(row?.["オッズ"]);
+        }
+
+        const fukushoMap = {};
+        for (const row of fukushoRows) {
+          const horseNo = normalizeHorseNo(row?.["馬番"]);
+          if (!horseNo || excludedSet.has(horseNo)) continue;
+          fukushoMap[horseNo] = parseOddsValue(row?.["オッズ"]);
+        }
+
+        const master = buildHorseMaster(entries, tanshoRows, excludedSet);
+        if (!master.length) {
+          return {
+            all_market_compare: [], compare1: [], compare2: [], compare3: [], compare4: [], compare5: [], compare6: [],
+            compare1_extended: [], compare3_extended: [], compare4_extended: [],
+          };
+        }
+        const horses = master.map((row) => row.horse_no);
+        const horseNameMap = Object.fromEntries(master.map((row) => [row.horse_no, row.horse_name]));
+
+        const umatanFirst = collectHorseFlowOdds(umatanRows, horses, excludedSet, "position", 0);
+        const umatanSecond = collectHorseFlowOdds(umatanRows, horses, excludedSet, "position", 1);
+        const sanrentanFirst = collectHorseFlowOdds(sanrentanRows, horses, excludedSet, "position", 0);
+        const sanrentanSecond = collectHorseFlowOdds(sanrentanRows, horses, excludedSet, "position", 1);
+        const sanrentanThird = collectHorseFlowOdds(sanrentanRows, horses, excludedSet, "position", 2);
+        const sanrentanAnyPos = combineSyntheticMaps(sanrentanFirst, sanrentanSecond, sanrentanThird);
+        const umarenFlow = collectHorseFlowOddsFirstColumn(umarenRows, horses, excludedSet, 2);
+        const wideFlow = collectHorseFlowOddsFirstColumn(wideRows, horses, excludedSet, 2);
+        const sanrenpukuFlow = collectHorseFlowOddsFirstColumn(sanrenpukuRows, horses, excludedSet, 3);
+        const umatanBoth = combineSyntheticMaps(umatanFirst, umatanSecond);
+
+        const allMarketCompare = master.map((row) => {
+          const horseNo = row.horse_no;
+          return {
+            horse_no: toHorseNoValue(horseNo),
+            horse_name: row.horse_name,
+            win_odds: round4(tanshoMap[horseNo]),
+            place_odds: round4(fukushoMap[horseNo]),
+            quinella_flow_odds: round4(umarenFlow[horseNo]),
+            exacta_both_flow_odds: round4(umatanBoth[horseNo]),
+            trio_flow_odds: round4(sanrenpukuFlow[horseNo]),
+            trifecta_single_head_flow_odds: round4(sanrentanAnyPos[horseNo]),
+            wide_flow_odds: round4(wideFlow[horseNo]),
+            exacta_first_flow_odds: round4(umatanFirst[horseNo]),
+            exacta_second_flow_odds: round4(umatanSecond[horseNo]),
+            trifecta_first_flow_odds: round4(sanrentanFirst[horseNo]),
+            trifecta_second_flow_odds: round4(sanrentanSecond[horseNo]),
+            trifecta_third_flow_odds: round4(sanrentanThird[horseNo]),
+          };
+        });
+
+        const compare1 = addSpreadColumn(
+          master.map((row) => {
+            const horseNo = row.horse_no;
+            return {
+              horse_no: toHorseNoValue(horseNo),
+              horse_name: row.horse_name,
+              win_odds: round4(tanshoMap[horseNo]),
+              exacta_first_flow_odds: round4(umatanFirst[horseNo]),
+              trifecta_first_flow_odds: round4(sanrentanFirst[horseNo]),
+            };
+          }),
+          ["win_odds", "exacta_first_flow_odds", "trifecta_first_flow_odds"]
+        );
+
+        const compare2 = addSpreadColumn(
+          master.map((row) => {
+            const horseNo = row.horse_no;
+            return {
+              horse_no: toHorseNoValue(horseNo),
+              horse_name: row.horse_name,
+              place_odds: round4(fukushoMap[horseNo]),
+              trio_flow_odds: round4(sanrenpukuFlow[horseNo]),
+              trifecta_single_head_flow_odds: round4(sanrentanAnyPos[horseNo]),
+            };
+          }),
+          ["place_odds", "trio_flow_odds", "trifecta_single_head_flow_odds"]
+        );
+
+        const compare1Extended = master.map((row) => {
+          const horseNo = row.horse_no;
+          return {
+            horse_no: toHorseNoValue(horseNo),
+            horse_name: row.horse_name,
+            win_odds: round4(tanshoMap[horseNo]),
+            exacta_second_flow_odds: round4(umatanSecond[horseNo]),
+            trifecta_second_flow_odds: round4(sanrentanSecond[horseNo]),
+            trifecta_third_flow_odds: round4(sanrentanThird[horseNo]),
+          };
+        });
+
+        return {
+          all_market_compare: allMarketCompare,
+          compare1,
+          compare2,
+          compare3: buildPairCompare(umarenRows, umatanRows, sanrentanRows, horseNameMap, horses, excludedSet),
+          compare4: buildExactaCompare(umatanRows, sanrentanRows, horseNameMap, horses, excludedSet),
+          compare5: buildWideCompare(wideRows, sanrenpukuRows, sanrentanRows, horseNameMap, horses, excludedSet),
+          compare6: buildTrioCompare(sanrenpukuRows, sanrentanRows, horseNameMap, horses, excludedSet),
+          compare1_extended: compare1Extended,
+          compare3_extended: buildPairExtensionCompare(umarenRows, sanrentanRows, horseNameMap, horses, excludedSet),
+          compare4_extended: buildExactaExtensionCompare(umatanRows, sanrentanRows, horseNameMap, horses, excludedSet),
+        };
+      }
+
       function getColumnClass(columnName) {
         const c = String(columnName);
         if (c === "horse" || c === "horse_a" || c === "horse_b") {
@@ -1174,8 +1782,8 @@
           statusCollapsed = true;
           renderStatus(data.odds_status || {});
 
-          const comparisons = data.comparisons || {};
-          lastAnalyzeData = data;
+          const comparisons = buildComparisonsFromScrapedData(data.odds || {}, data.entries || [], excluded);
+          lastAnalyzeData = { ...data, comparisons };
           tableStates.all = {
             key: "all",
             title: "全券種比較（全流し合成オッズ）",

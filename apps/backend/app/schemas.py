@@ -11,6 +11,6 @@ class AnalyzeRequest(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     race: dict
+    entries: list[dict] = Field(default_factory=list)
     odds_status: dict
     odds: dict
-    comparisons: dict
