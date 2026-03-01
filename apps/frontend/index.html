@@ -141,6 +141,10 @@
       <div style="align-self: end">
         <button id="runBtn">分析実行</button>
       </div>
+      <div style="align-self: end; display: flex; gap: 8px;">
+        <button id="exportCsvBtn" disabled>CSV出力</button>
+        <button id="exportHtmlBtn" disabled>HTML出力</button>
+      </div>
     </div>
 
     <div id="meta" class="card"></div>
@@ -149,6 +153,8 @@
 
     <script>
       const runBtn = document.getElementById("runBtn");
+      const exportCsvBtn = document.getElementById("exportCsvBtn");
+      const exportHtmlBtn = document.getElementById("exportHtmlBtn");
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
       const tablesBox = document.getElementById("tables");
@@ -163,6 +169,19 @@
       let globalFilterNames = [];
       let showExtendedPatterns = false;
       let extendedStates = {};
+      let lastAnalyzeData = null;
+      const EXPORT_SECTIONS = [
+        { key: "all_market_compare", title: "全券種比較（全流し合成オッズ）" },
+        { key: "compare1", title: "単勝系: 単勝 / 馬単1着流し / 三連単1着流し" },
+        { key: "compare2", title: "複勝系: 複勝 / 三連複1頭軸 / 三連単1頭軸マルチ" },
+        { key: "compare3", title: "馬連系: 馬連 / 馬単裏表 / 三連単1-2着裏表3着全流し" },
+        { key: "compare4", title: "馬単系: 馬単 / 三連単3着全流し" },
+        { key: "compare5", title: "ワイド系: ワイド / 三連複2頭軸 / 三連単2頭軸マルチ" },
+        { key: "compare6", title: "三連複系: 三連複 / 三連単3頭BOX" },
+        { key: "compare1_extended", title: "単勝系 拡張" },
+        { key: "compare3_extended", title: "馬連系 拡張" },
+        { key: "compare4_extended", title: "馬単系 拡張" },
+      ];
       const COLUMN_LABELS_JA = {
         horse: "馬A",
         horse_no: "馬番",
@@ -237,6 +256,132 @@
 
       function formatColumnLabel(columnName) {
         return COLUMN_LABELS_JA[columnName] || String(columnName);
+      }
+
+      function sanitizeLabelText(value) {
+        return String(value ?? "").replaceAll("\n", " ").trim();
+      }
+
+      function setExportButtonsEnabled(enabled) {
+        const flag = !!enabled;
+        if (exportCsvBtn) exportCsvBtn.disabled = !flag;
+        if (exportHtmlBtn) exportHtmlBtn.disabled = !flag;
+      }
+
+      function getExportSections(data) {
+        const comparisons = data?.comparisons || {};
+        return EXPORT_SECTIONS
+          .map((section) => ({
+            title: section.title,
+            rows: Array.isArray(comparisons?.[section.key]) ? comparisons[section.key] : [],
+          }))
+          .filter((section) => section.rows.length > 0);
+      }
+
+      function getColumns(rows) {
+        if (!rows.length) return [];
+        const base = Object.keys(rows[0]);
+        const extras = rows.flatMap((row) => Object.keys(row || {})).filter((key) => !base.includes(key));
+        return [...base, ...Array.from(new Set(extras))];
+      }
+
+      function csvEscape(value) {
+        const text = String(value ?? "").replaceAll('"', '""');
+        return `"${text}"`;
+      }
+
+      function downloadTextFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function exportAsCsv() {
+        const sections = getExportSections(lastAnalyzeData);
+        if (!sections.length) {
+          alert("出力対象のデータがありません。先に分析実行してください。");
+          return;
+        }
+        const race = lastAnalyzeData?.race || {};
+        const lines = [];
+        lines.push(`${csvEscape("race_id")},${csvEscape(race.race_id || "")}`);
+        lines.push(`${csvEscape("race_name")},${csvEscape(race.race_name || "")}`);
+        lines.push(`${csvEscape("race_date")},${csvEscape(race.race_date || "")}`);
+        lines.push(`${csvEscape("analyzed_at")},${csvEscape(race.analyzed_at || "")}`);
+        lines.push("");
+
+        for (const section of sections) {
+          const columns = getColumns(section.rows);
+          lines.push(csvEscape(section.title));
+          lines.push(columns.map((column) => csvEscape(sanitizeLabelText(formatColumnLabel(column)))).join(","));
+          for (const row of section.rows) {
+            const values = columns.map((column) => csvEscape(row?.[column] ?? ""));
+            lines.push(values.join(","));
+          }
+          lines.push("");
+        }
+
+        const raceId = String(race.race_id || "race").trim() || "race";
+        downloadTextFile(lines.join("\n"), `nk-calculator_${raceId}.csv`, "text/csv;charset=utf-8");
+      }
+
+      function exportAsHtml() {
+        const sections = getExportSections(lastAnalyzeData);
+        if (!sections.length) {
+          alert("出力対象のデータがありません。先に分析実行してください。");
+          return;
+        }
+        const race = lastAnalyzeData?.race || {};
+        const blocks = sections.map((section) => {
+          const columns = getColumns(section.rows);
+          const thead = `<tr>${columns.map((column) => `<th>${escapeHtml(sanitizeLabelText(formatColumnLabel(column)))}</th>`).join("")}</tr>`;
+          const tbody = section.rows
+            .map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(formatCellValue(column, row?.[column] ?? ""))}</td>`).join("")}</tr>`)
+            .join("");
+          return `
+            <section class="section">
+              <h2>${escapeHtml(section.title)}</h2>
+              <table>
+                <thead>${thead}</thead>
+                <tbody>${tbody}</tbody>
+              </table>
+            </section>
+          `;
+        });
+
+        const html = `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>nk-calculator export</title>
+    <style>
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 20px; color: #111; }
+      h1 { margin: 0 0 8px; font-size: 20px; }
+      .meta { margin: 0 0 16px; color: #444; font-size: 13px; }
+      .section { margin: 0 0 24px; }
+      h2 { margin: 0 0 8px; font-size: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border: 1px solid #ccc; padding: 4px 6px; white-space: nowrap; text-align: right; }
+      th:first-child, td:first-child { text-align: left; }
+      th { background: #f5f5f5; }
+    </style>
+  </head>
+  <body>
+    <h1>nk-calculator 出力</h1>
+    <p class="meta">race_id: ${escapeHtml(race.race_id || "-")} / race_name: ${escapeHtml(race.race_name || "-")} / analyzed_at: ${escapeHtml(formatDateTimeText(race.analyzed_at || ""))}</p>
+    ${blocks.join("\n")}
+  </body>
+</html>`;
+
+        const raceId = String(race.race_id || "race").trim() || "race";
+        downloadTextFile(html, `nk-calculator_${raceId}.html`, "text/html;charset=utf-8");
       }
 
       function getColumnClass(columnName) {
@@ -992,6 +1137,8 @@
         metaBox.innerHTML = "実行中...";
         statusBox.innerHTML = "";
         tablesBox.innerHTML = "";
+        lastAnalyzeData = null;
+        setExportButtonsEnabled(false);
 
         try {
           const resp = await fetch(`${API_BASE_URL}/v1/analyze`, {
@@ -1028,6 +1175,7 @@
           renderStatus(data.odds_status || {});
 
           const comparisons = data.comparisons || {};
+          lastAnalyzeData = data;
           tableStates.all = {
             key: "all",
             title: "全券種比較（全流し合成オッズ）",
@@ -1137,10 +1285,12 @@
           };
 
           updateGlobalHorseFilterOptions(comparisons);
+          setExportButtonsEnabled(true);
 
           renderTables();
         } catch (err) {
           metaBox.innerHTML = `<p class="err">${escapeHtml(err.message || err)}</p>`;
+          setExportButtonsEnabled(false);
         }
       }
 
@@ -1149,6 +1299,8 @@
         syncAllSplitRowHeights();
       });
       runBtn.addEventListener("click", runAnalyze);
+      exportCsvBtn.addEventListener("click", exportAsCsv);
+      exportHtmlBtn.addEventListener("click", exportAsHtml);
     </script>
   </body>
 </html>
