@@ -1,43 +1,46 @@
 # nk-calculator
 
-URL入力からオッズ取得・比較計算までを一気通貫で実行するWebアプリ。
+netkeiba の出馬表URLを入力すると、オッズ取得から比較表示までを行うWebアプリです。
 
 ## Goal
 
 - ユーザーがレースURLを入力
-- サーバーでオッズを取得
-- 比較テーブル（比較1/2/3）を計算
-- ブラウザで結果を表示
-- スマホでも比較しやすく表示
+- サーバーはスクレイプ結果（entries / odds / status）を返却
+- フロントエンドで比較計算を実行
+- ブラウザで比較テーブルを表示・再計算・出力
 
 ## Monorepo Layout
 
 - `apps/frontend`: GitHub Pages配信用フロントエンド（静的）
 - `apps/backend`: APIサーバー（FastAPI）
-- `packages/core`: 取得・計算の共通ドメインロジック
+- `packages/core`: 取得・正規化の共通ロジック
 - `docs`: アーキテクチャ、API契約、デプロイ設計
 
 ## Current Features
 
-- 入力は `netkeiba` 出馬表URL（`/race/shutuba.html?race_id=...`）
+- 入力URLは `race.netkeiba.com` / `race.sp.netkeiba.com` / `nar.netkeiba.com` の出馬表URL
+- `race.sp.netkeiba.com` は自動で `race.netkeiba.com` に正規化
 - 消し馬は `1〜18` チェックボックスで指定
-- 比較1/2/3 は行内の高値・低値を強調表示
-- 各比較テーブルで列ソート可能
-- 比較3は `馬名A` フィルターあり（全表示も可能）
-- レース情報に `odds_updated_at` / `analyzed_at` を表示
+- 全比較テーブル（all / c1〜c6 + 拡張）を表示
+- 行内の高値・低値を強調表示（拡張比較の一部は別色ハイライト対応）
+- 列ソート / 馬A・馬B絞り込み / 拡張パターントグル
+- CSV / HTML 出力（直近計算結果を再利用）
+- 同一URLはフロントキャッシュから再計算し、API再取得を省略（最新取得ON時は強制再取得）
+- レース情報に `odds_updated_at` / `source_fetched_at` / `analyzed_at` を表示
 
-## Data Notes
+## Data/Compute Notes
 
-- APIの比較テーブル列キーは英語
-- フロント表示は日本語ラベルへ変換
+- APIは `race / entries / odds_status / odds` を返却
+- 比較計算（all_market_compare, compare1〜6, 各extended）はフロントで実行
+- フロント表示は英語キーを日本語ラベルへ変換
 - 順不同券種は順序展開して欠けのない行列化
 	- 馬連/ワイド: 2倍展開
 	- 三連複: 6倍展開
 
 ## Why this split
 
-GitHub Pagesは静的ホスティングのみのため、スクレイピングや計算処理は `apps/backend` で実行します。
-フロントエンドは `apps/backend` のAPIを呼び出す構成にします。
+GitHub Pagesは静的ホスティングのみのため、スクレイピングは `apps/backend` で実行します。
+比較計算はフロントで行うことで、同一URLに対する消し馬の再計算をAPI未呼び出しで実現します。
 
 ## Quick Start (MVP)
 
