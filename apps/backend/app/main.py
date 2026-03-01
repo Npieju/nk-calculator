@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import sys
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,14 +49,29 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _normalize_race_url(raw_url: str) -> str:
+    race_url = str(raw_url).strip()
+    parsed = urlparse(race_url)
+    if not parsed.scheme or not parsed.netloc:
+        return race_url
+
+    host = (parsed.hostname or "").lower()
+    netloc = parsed.netloc
+    if host == "race.sp.netkeiba.com":
+        netloc = "race.netkeiba.com"
+
+    normalized_path = "/" + parsed.path.lstrip("/")
+    return urlunparse((parsed.scheme, netloc, normalized_path, parsed.params, parsed.query, parsed.fragment))
+
+
 @app.post("/v1/analyze", response_model=AnalyzeResponse)
 def analyze(payload: AnalyzeRequest) -> dict:
-    race_url = str(payload.race_url).strip()
+    race_url = _normalize_race_url(payload.race_url)
     parsed = urlparse(race_url)
     host = (parsed.hostname or "").lower()
     is_supported_host = host in {"race.netkeiba.com", "nar.netkeiba.com"}
     is_supported_path = parsed.path == "/race/shutuba.html"
-    has_race_id = "race_id=" in race_url
+    has_race_id = "race_id" in parse_qs(parsed.query)
     if not (is_supported_host and is_supported_path and has_race_id):
         raise HTTPException(status_code=400, detail="対応URLは netkeiba の出馬表ページ（/race/shutuba.html?race_id=...）です")
     try:
