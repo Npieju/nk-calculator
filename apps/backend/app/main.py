@@ -56,12 +56,19 @@ def _normalize_race_url(raw_url: str) -> str:
         return race_url
 
     host = (parsed.hostname or "").lower()
-    netloc = parsed.netloc
-    if host == "race.sp.netkeiba.com":
-        netloc = "race.netkeiba.com"
+    query = parse_qs(parsed.query)
+    race_id = str((query.get("race_id") or [""])[0]).strip()
 
-    normalized_path = "/" + parsed.path.lstrip("/")
-    return urlunparse((parsed.scheme, netloc, normalized_path, parsed.params, parsed.query, parsed.fragment))
+    if host == "race.sp.netkeiba.com":
+        host = "race.netkeiba.com"
+
+    if host not in {"race.netkeiba.com", "nar.netkeiba.com"}:
+        return race_url
+    if not race_id:
+        return race_url
+
+    canonical_query = f"race_id={race_id}"
+    return urlunparse(("https", host, "/race/shutuba.html", "", canonical_query, ""))
 
 
 @app.post("/v1/analyze", response_model=AnalyzeResponse)
@@ -70,10 +77,9 @@ def analyze(payload: AnalyzeRequest) -> dict:
     parsed = urlparse(race_url)
     host = (parsed.hostname or "").lower()
     is_supported_host = host in {"race.netkeiba.com", "nar.netkeiba.com"}
-    is_supported_path = parsed.path == "/race/shutuba.html"
     has_race_id = "race_id" in parse_qs(parsed.query)
-    if not (is_supported_host and is_supported_path and has_race_id):
-        raise HTTPException(status_code=400, detail="対応URLは netkeiba の出馬表ページ（/race/shutuba.html?race_id=...）です")
+    if not (is_supported_host and has_race_id):
+        raise HTTPException(status_code=400, detail="対応URLは netkeiba のレースページURL（race_id=... を含む）です")
     try:
         return analyze_race(
             race_url,
