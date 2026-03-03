@@ -75,6 +75,7 @@ cd apps/frontend
 - [Architecture](docs/architecture.md)
 - [API Contract](docs/api-contract.md)
 - [Deployment](docs/deployment.md)
+- [Release Notes](docs/release-notes.md)
 
 ## Deploy
 
