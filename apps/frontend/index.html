@@ -3155,7 +3155,7 @@
                 </div>
                 ${state.collapsed ? "" : `
                 <div class="toolbar">
-                  ${buildToolbarFieldHtml("列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+                  ${buildToolbarFieldHtml("ソート", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
                   ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
                 </div>
                 <div class="all-split-wrap">
@@ -3184,7 +3184,7 @@
               </div>
               ${state.collapsed ? "" : `
               <div class="toolbar">
-                ${buildToolbarFieldHtml("列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+                ${buildToolbarFieldHtml("ソート", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
                 ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
               </div>
               <div class="all-split-wrap">
