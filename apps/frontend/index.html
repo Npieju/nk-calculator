@@ -818,6 +818,8 @@
       const CLIENT_CACHE_STORAGE_KEY = "nk_calculator_scraped_cache_v1";
       const CLIENT_CACHE_MAX_ENTRIES = 20;
       const DEFAULT_ALLOCATION_TOTAL = 10000;
+      const COMPACT_ALL_TABLE_BREAKPOINT = 820;
+      let useCompactAllTableLayout = window.innerWidth <= COMPACT_ALL_TABLE_BREAKPOINT;
       const allocationModalState = {
         open: false,
         tableKey: "",
@@ -965,11 +967,12 @@
       }
 
       function formatHorseDisplay(horseNo, horseName) {
-        const noText = String(horseNo ?? "").trim();
+        const noText = formatCircledHorseNo(horseNo);
         const nameText = String(horseName ?? "").trim();
         if (!noText && !nameText) return "";
-        const paddedNo = /^\d$/.test(noText) ? ` ${noText}` : noText;
-        return `${paddedNo}.${nameText}`.replace(/^\./, "").replace(/\.$/, "");
+        if (!noText) return nameText;
+        if (!nameText) return noText;
+        return `${noText}${nameText}`;
       }
 
       function formatOddsText(value) {
@@ -1003,8 +1006,19 @@
         return Math.floor(n / 100) * 100;
       }
 
+      function formatCircledHorseNo(horseNo) {
+        const text = normalizeHorseNo(horseNo);
+        if (!text) return "";
+        if (!/^\d+$/.test(text)) return text;
+        const horseNoValue = Number(text);
+        if (horseNoValue >= 1 && horseNoValue <= 20) {
+          return String.fromCodePoint(9311 + horseNoValue);
+        }
+        return text;
+      }
+
       function formatHorseNoOnly(horseNo) {
-        return String(horseNo ?? "").trim();
+        return formatCircledHorseNo(horseNo);
       }
 
       function setExportButtonsEnabled(enabled) {
@@ -2847,6 +2861,34 @@
           const fixedColumns = ["horse", "win_odds"].filter((c) => focusedDisplayColumns.includes(c));
           const scrollColumns = focusedDisplayColumns.filter((c) => !fixedColumns.includes(c));
 
+          if (useCompactAllTableLayout) {
+            const compactHead = `<tr>${focusedDisplayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+            const compactBody = sortedRows
+              .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${focusedDisplayColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
+              .join("");
+
+            return `
+              <div class="card">
+                <div class="card-head">
+                  <h3>${escapeHtml(title)}</h3>
+                  <div style="display:flex;align-items:center;gap:8px;">${extendedToggleControl}<button onclick="window.toggleTableCollapse('${escapeHtml(state.key)}')">${state.collapsed ? "展開" : "折り畳み"}</button></div>
+                </div>
+                ${state.collapsed ? "" : `
+                <div class="toolbar">
+                  <span>ソート列</span>
+                  <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
+                  <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+                </div>
+                <div class="scroll">
+                  <table>
+                    <thead>${compactHead}</thead>
+                    <tbody>${compactBody}</tbody>
+                  </table>
+                </div>
+                `}
+              </div>`;
+          }
+
           const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
           const scrollHead = `<tr>${scrollColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
 
@@ -3414,6 +3456,12 @@
       initializeRaceSelector();
       initExcludedPicker();
       window.addEventListener("resize", () => {
+        const nextUseCompactAllTableLayout = window.innerWidth <= COMPACT_ALL_TABLE_BREAKPOINT;
+        if (nextUseCompactAllTableLayout !== useCompactAllTableLayout) {
+          useCompactAllTableLayout = nextUseCompactAllTableLayout;
+          renderTables();
+          return;
+        }
         syncAllSplitRowHeights();
       });
       window.addEventListener("keydown", (event) => {
