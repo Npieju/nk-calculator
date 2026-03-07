@@ -27,8 +27,6 @@
         --shadow-soft: 0 1px 0 rgba(31, 36, 31, 0.08);
         --shadow-strong: 0 12px 30px rgba(31, 36, 31, 0.12);
         --radius: 12px;
-        --all-compact-horse-width: 10.6em;
-        --all-compact-win-width: 5.8em;
       }
 
       * { box-sizing: border-box; }
@@ -698,39 +696,6 @@
         background: var(--panel-soft);
       }
 
-      .all-compact-sticky-horse,
-      .all-compact-sticky-win {
-        position: sticky;
-        background: var(--panel-strong);
-      }
-
-      .all-compact-sticky-horse {
-        left: 0;
-        min-width: var(--all-compact-horse-width);
-        width: var(--all-compact-horse-width);
-        z-index: 2;
-        box-shadow: 1px 0 0 var(--line);
-      }
-
-      .all-compact-sticky-win {
-        left: calc(var(--all-compact-horse-width) + 1px);
-        min-width: var(--all-compact-win-width);
-        width: var(--all-compact-win-width);
-        z-index: 2;
-        box-shadow: 1px 0 0 var(--line);
-      }
-
-      thead .all-compact-sticky-horse,
-      thead .all-compact-sticky-win {
-        background: var(--panel-soft);
-        z-index: 4;
-      }
-
-      .clickable-row:hover td.all-compact-sticky-horse,
-      .clickable-row:hover td.all-compact-sticky-win {
-        background: rgba(27, 91, 78, 0.06);
-      }
-
       select { padding: 10px 12px; }
 
       .all-split-wrap {
@@ -811,7 +776,7 @@
       .allocation-card {
         border: 1px solid var(--line);
         border-radius: 4px;
-        padding: 12px 12px 10px;
+        padding: 10px 10px 8px;
         background: var(--panel-soft);
         min-width: 0;
       }
@@ -819,8 +784,8 @@
       .allocation-card h4 { margin: 0 0 10px; font-size: 14px; }
 
       .allocation-card .scroll {
-        margin: 0 -12px;
-        padding: 0 12px 2px;
+        margin: 0;
+        padding: 0 0 2px;
       }
 
       .allocation-meta {
@@ -1031,7 +996,7 @@
               <div id="fetchSummary"></div>
             </div>
             <details class="control-options">
-              <summary>オプション</summary>
+              <summary>消し馬オプション</summary>
               <div class="row">
                 <label>
                   消し馬（オッズ計算から除外）
@@ -2923,12 +2888,6 @@
         return `<button class="toolbar-toggle-button" type="button" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" onclick="window.toggleSortOrder('${escapeHtml(stateKey)}')"><span class="toolbar-toggle-symbol">${symbol}</span><span>${escapeHtml(shortLabel)}</span></button>`;
       }
 
-      function getAllCompactStickyClass(columnName) {
-        if (columnName === "horse") return " all-compact-sticky-horse";
-        if (columnName === "win_odds") return " all-compact-sticky-win";
-        return "";
-      }
-
       function buildRowMergeKey(tableKey, row) {
         if (tableKey === "c1") {
           return String(row?.horse_no ?? "").trim();
@@ -3178,13 +3137,16 @@
         if (state.key === "all") {
           const fixedColumns = ["horse", "win_odds"].filter((c) => focusedDisplayColumns.includes(c));
           const scrollColumns = focusedDisplayColumns.filter((c) => !fixedColumns.includes(c));
+          const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+          const scrollHead = `<tr>${scrollColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+          const fixedBody = sortedRows
+            .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${fixedColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
+            .join("");
+          const scrollBody = sortedRows
+            .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${scrollColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
+            .join("");
 
           if (useCompactAllTableLayout) {
-            const compactHead = `<tr>${focusedDisplayColumns.map((c) => `<th class="${getColumnClass(c)}${getAllCompactStickyClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
-            const compactBody = sortedRows
-              .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${focusedDisplayColumns.map((c) => `<td class="${getColumnClass(c)}${getAllCompactStickyClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
-              .join("");
-
             return `
               <div class="card table-card">
                 <div class="card-head">
@@ -3193,28 +3155,26 @@
                 </div>
                 ${state.collapsed ? "" : `
                 <div class="toolbar">
-                  ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+                  ${buildToolbarFieldHtml("列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
                   ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
                 </div>
-                <div class="scroll">
-                  <table>
-                    <thead>${compactHead}</thead>
-                    <tbody>${compactBody}</tbody>
-                  </table>
+                <div class="all-split-wrap">
+                  <div class="all-fixed">
+                    <table>
+                      <thead>${fixedHead}</thead>
+                      <tbody>${fixedBody}</tbody>
+                    </table>
+                  </div>
+                  <div class="all-scroll">
+                    <table>
+                      <thead>${scrollHead}</thead>
+                      <tbody>${scrollBody}</tbody>
+                    </table>
+                  </div>
                 </div>
                 `}
               </div>`;
           }
-
-          const fixedHead = `<tr>${fixedColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
-          const scrollHead = `<tr>${scrollColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
-
-          const fixedBody = sortedRows
-            .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${fixedColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
-            .join("");
-          const scrollBody = sortedRows
-            .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${scrollColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
-            .join("");
 
           return `
             <div class="card table-card">
@@ -3224,7 +3184,7 @@
               </div>
               ${state.collapsed ? "" : `
               <div class="toolbar">
-                ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+                ${buildToolbarFieldHtml("列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
                 ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
               </div>
               <div class="all-split-wrap">
