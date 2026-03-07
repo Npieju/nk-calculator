@@ -180,9 +180,21 @@
       .dashboard-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.92fr);
+        grid-template-areas:
+          "main info"
+          "main side";
         gap: 18px;
         align-items: start;
       }
+
+      .main-column { grid-area: main; }
+
+      .info-panel {
+        grid-area: info;
+        min-width: 0;
+      }
+
+      .side-column { grid-area: side; }
 
       .main-column, .side-column, .section-stack {
         display: grid;
@@ -658,6 +670,13 @@
         .dashboard-grid {
           grid-template-columns: 1fr;
         }
+
+        .dashboard-grid {
+          grid-template-areas:
+            "info"
+            "main"
+            "side";
+        }
       }
 
       @media (max-width: 900px) {
@@ -707,6 +726,35 @@
       </header>
 
       <div class="dashboard-grid">
+        <details class="info card info-panel">
+          <summary>info（使い方と計算前提）</summary>
+          <p class="muted"><strong>使い方</strong></p>
+          <ul class="muted" style="margin: 6px 0 10px 18px; padding: 0;">
+            <li>通常は中央 / 地方タブから開催場とレースを選んで分析します。海外や個別ページを直接使いたい場合だけURL入力を使ってください。</li>
+            <li>分析後は消し馬を指定して、前提を変えた比較をすぐに再計算できます。</li>
+            <li>各表は、同じ結果に賭けている別券種どうしのオッズ差を見つけるためのビューです。</li>
+          </ul>
+          <p class="muted"><strong>比較の前提</strong></p>
+          <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
+            <li>全通りで見る場合、同じ行で比較している買い目は「当たり方が論理的に同じ」組み合わせです。</li>
+            <li>消し馬を指定した場合は、「消した馬が来ない前提」において同じ結果になる買い目どうしを比較します。</li>
+            <li>消し馬は計算から除外されます。消した馬が実際に来た場合、その前提の買い目は外れます。</li>
+          </ul>
+          <p class="muted" style="margin-top: 8px;"><strong>計算ルール</strong></p>
+          <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
+            <li>合成オッズは、対象買い目の確率和から逆算します（合成オッズ = 1 / Σ(1 / 各オッズ)）。</li>
+            <li>レンジ表記オッズ（例: 10.5 - 12.8）は平均値で計算します。</li>
+            <li>0倍（地方での未得票馬券など）は計算上 999999倍として扱います。</li>
+            <li>差異率は、基準列（左端）に対する最大列の比率で計算します。</li>
+          </ul>
+          <p class="muted" style="margin-top: 8px;"><strong>読み方</strong></p>
+          <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
+            <li>同じ行で強調される買い目ほど、その前提で相対的に高いオッズが付いています。</li>
+            <li>固定オッズを前提に合成オッズが高い側は、`1/オッズ` 比例の資金配分で基準より有利な買い方を組める余地があります。</li>
+            <li>差異率が大きい行でも、実際には極端な穴馬や直前のオッズ変動を含むことがあるため、そのまま買い得とは限りません。</li>
+          </ul>
+        </details>
+
         <main class="main-column">
           <section class="card card-emphasis">
             <div class="card-head">
@@ -752,35 +800,6 @@
         </main>
 
         <aside class="side-column">
-          <details class="info card">
-            <summary>info（使い方と計算前提）</summary>
-            <p class="muted"><strong>使い方</strong></p>
-            <ul class="muted" style="margin: 6px 0 10px 18px; padding: 0;">
-              <li>通常は中央 / 地方タブから開催場とレースを選んで分析します。海外や個別ページを直接使いたい場合だけURL入力を使ってください。</li>
-              <li>分析後は消し馬を指定して、前提を変えた比較をすぐに再計算できます。</li>
-              <li>各表は、同じ結果に賭けている別券種どうしのオッズ差を見つけるためのビューです。</li>
-            </ul>
-            <p class="muted"><strong>比較の前提</strong></p>
-            <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
-              <li>全通りで見る場合、同じ行で比較している買い目は「当たり方が論理的に同じ」組み合わせです。</li>
-              <li>消し馬を指定した場合は、「消した馬が来ない前提」において同じ結果になる買い目どうしを比較します。</li>
-              <li>消し馬は計算から除外されます。消した馬が実際に来た場合、その前提の買い目は外れます。</li>
-            </ul>
-            <p class="muted" style="margin-top: 8px;"><strong>計算ルール</strong></p>
-            <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
-              <li>合成オッズは、対象買い目の確率和から逆算します（合成オッズ = 1 / Σ(1 / 各オッズ)）。</li>
-              <li>レンジ表記オッズ（例: 10.5 - 12.8）は平均値で計算します。</li>
-              <li>0倍（地方での未得票馬券など）は計算上 999999倍として扱います。</li>
-              <li>差異率は、基準列（左端）に対する最大列の比率で計算します。</li>
-            </ul>
-            <p class="muted" style="margin-top: 8px;"><strong>読み方</strong></p>
-            <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
-              <li>同じ行で強調される買い目ほど、その前提で相対的に高いオッズが付いています。</li>
-              <li>固定オッズを前提に合成オッズが高い側は、`1/オッズ` 比例の資金配分で基準より有利な買い方を組める余地があります。</li>
-              <li>差異率が大きい行でも、実際には極端な穴馬や直前のオッズ変動を含むことがあるため、そのまま買い得とは限りません。</li>
-            </ul>
-          </details>
-
           <details id="manualUrlDetails" class="card">
             <summary>URL入力（副機能）</summary>
             <p class="muted" style="margin-top: 12px;">通常は上のレース選択から分析できます。URL入力が必要な場合だけ使ってください。</p>
