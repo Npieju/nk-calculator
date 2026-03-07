@@ -127,22 +127,11 @@
         padding: 24px 18px 40px;
       }
 
-      .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
-        gap: 16px;
-        margin-bottom: 16px;
-      }
+      .hero { margin-bottom: 16px; }
 
       .hero-card {
         background: var(--panel-strong);
         padding: 18px 20px;
-      }
-
-      .hero-note {
-        display: grid;
-        gap: 8px;
-        align-content: start;
       }
 
       .section-eyebrow {
@@ -168,22 +157,6 @@
         font-size: 14px;
         color: var(--muted);
       }
-
-      .hero-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        gap: 0;
-      }
-
-      .hero-list li {
-        padding: 10px 0;
-        color: var(--muted-strong);
-        border-top: 1px solid var(--line);
-      }
-
-      .hero-list li:first-child { border-top: none; }
 
       .dashboard-grid {
         display: grid;
@@ -528,19 +501,20 @@
 
       .selector-race-grid {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
         margin-top: 10px;
       }
 
       .selector-race-button {
-        min-width: 174px;
-        max-width: 240px;
+        min-width: 158px;
+        max-width: 210px;
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 6px;
         background: var(--panel-strong);
         text-align: left;
         box-shadow: none;
+        padding: 8px 10px;
       }
 
       .selector-race-button:hover {
@@ -550,14 +524,15 @@
 
       .selector-race-label {
         font-weight: 700;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
+        font-size: 13px;
         color: var(--text);
       }
 
       .selector-race-meta {
-        font-size: 12px;
+        font-size: 11.5px;
         color: var(--muted);
-        line-height: 1.45;
+        line-height: 1.32;
         white-space: normal;
       }
 
@@ -746,6 +721,10 @@
         font-size: 20px;
       }
 
+      .modal-close-button {
+        font-size: 20px;
+      }
+
       .allocation-toolbar input { width: 100%; min-width: 0; }
 
       .allocation-grid {
@@ -787,9 +766,10 @@
       .allocation-table td { white-space: nowrap; }
 
       .allocation-table input {
-        width: 110px;
+        width: 86px;
         min-width: 0;
-        padding: 6px 8px;
+        padding: 5px 6px;
+        text-align: right;
       }
 
       th.col-clip {
@@ -873,7 +853,22 @@
           gap: 8px;
         }
         .toolbar-field.is-wide { grid-column: auto; }
-        .selector-race-button { min-width: 148px; max-width: none; width: 100%; }
+        .selector-race-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px;
+        }
+        .selector-race-button {
+          min-width: 0;
+          max-width: none;
+          width: 100%;
+          padding: 7px 8px;
+        }
+        .selector-race-label { font-size: 12px; }
+        .selector-race-meta {
+          font-size: 10.5px;
+          line-height: 1.25;
+        }
         .selector-controls input, .selector-controls select { min-width: 0; width: 100%; }
         .modal-card { padding: 12px; border-radius: 20px; }
         .allocation-toolbar input { width: 100%; }
@@ -888,19 +883,17 @@
           <h1>券種水平オッズ比較</h1>
           <p class="lead">オッズを解析して券種ごとのオッズの歪みを可視化します。予想後の買い目最適化に利用してください。</p>
         </section>
-        <section class="card hero-note">
-          <p class="section-eyebrow">用途</p>
-          <ul class="hero-list">
-            <li>中央・地方・海外の対象レースを指定</li>
-            <li>同一的中条件の券種オッズを横並びで比較</li>
-            <li>行単位で資金配分の例まで確認</li>
-          </ul>
-        </section>
       </header>
 
       <div class="dashboard-grid">
         <details class="info card info-panel">
-          <summary>info（使い方と計算前提）</summary>
+          <summary>info</summary>
+          <p class="muted"><strong>用途</strong></p>
+          <ul class="muted" style="margin: 6px 0 10px 18px; padding: 0;">
+            <li>中央・地方・海外の対象レースを指定します。</li>
+            <li>同一的中条件の券種オッズを横並びで比較します。</li>
+            <li>行単位で資金配分の例まで確認できます。</li>
+          </ul>
           <p class="muted"><strong>使い方</strong></p>
           <ul class="muted" style="margin: 6px 0 10px 18px; padding: 0;">
             <li>通常は中央 / 地方タブから開催場とレースを選んで分析します。海外や個別ページを直接使いたい場合だけURL入力を使ってください。</li>
@@ -1696,7 +1689,7 @@
                   <h3>比例資金配分の例</h3>
                   <p class="muted" style="margin: 0;">${escapeHtml(viewState?.title || "")} / ${escapeHtml(buildRowSummaryText(row))}</p>
                 </div>
-                <button onclick="window.closeAllocationModal()">閉じる</button>
+                <button class="icon-button modal-close-button" type="button" title="閉じる" aria-label="閉じる" onclick="window.closeAllocationModal()">×</button>
               </div>
               <div class="allocation-toolbar">
                 ${buildToolbarFieldHtml("総資金", `<input type="number" min="100" step="100" value="${escapeHtml(totalStake)}" onchange="window.changeAllocationTotal(this.value)" />`)}
