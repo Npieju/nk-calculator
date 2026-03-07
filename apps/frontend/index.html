@@ -230,6 +230,16 @@
         max-width: 100%;
       }
 
+      .table-card {
+        padding: 12px;
+        border-radius: 8px;
+      }
+
+      .table-card .card-head {
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+      }
+
       .card-head {
         display: flex;
         justify-content: space-between;
@@ -371,7 +381,13 @@
       .control-card label:first-child { flex: 1 1 340px; }
 
       .toolbar,
-      .allocation-toolbar,
+      .allocation-toolbar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+        gap: 8px 10px;
+        align-items: end;
+      }
+
       .selector-controls {
         display: flex;
         gap: 10px;
@@ -381,9 +397,9 @@
 
       .toolbar,
       .allocation-toolbar {
-        padding: 10px 12px;
+        padding: 8px 10px;
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 4px;
         background: var(--panel-soft);
       }
 
@@ -391,8 +407,41 @@
 
       .allocation-toolbar { margin-bottom: 14px; }
 
-      .toolbar span,
-      .allocation-toolbar span { font-size: 13px; color: var(--muted); }
+      .toolbar-field {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+        align-content: start;
+      }
+
+      .toolbar-field.is-wide {
+        grid-column: span 2;
+      }
+
+      .toolbar-label {
+        font-size: 12px;
+        line-height: 1.2;
+        color: var(--muted);
+      }
+
+      .toolbar-field input,
+      .toolbar-field select,
+      .toolbar-field button {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .toolbar-field button {
+        padding-inline: 12px;
+      }
+
+      .toolbar-note {
+        grid-column: 1 / -1;
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
 
       .muted { color: var(--muted); }
       .ok { color: #1f7a5a; }
@@ -577,14 +626,14 @@
         table-layout: auto;
         background: var(--panel-strong);
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 4px;
         overflow: hidden;
       }
 
       th, td {
         border-right: 1px solid var(--line);
         border-bottom: 1px solid var(--line);
-        padding: 8px 10px;
+        padding: 7px 8px;
         font-size: 13px;
         vertical-align: middle;
         font-variant-numeric: lining-nums tabular-nums;
@@ -617,7 +666,7 @@
         overflow-x: auto;
         overflow-y: visible;
         -webkit-overflow-scrolling: touch;
-        border-radius: 16px;
+        border-radius: 0;
       }
 
       .sticky-col {
@@ -640,6 +689,7 @@
         min-width: 0;
         max-width: 100%;
         overflow: hidden;
+        border-radius: 4px;
       }
 
       .all-fixed {
@@ -696,7 +746,7 @@
         font-size: 20px;
       }
 
-      .allocation-toolbar input { width: 140px; min-width: 0; }
+      .allocation-toolbar input { width: 100%; min-width: 0; }
 
       .allocation-grid {
         display: grid;
@@ -706,7 +756,7 @@
 
       .allocation-card {
         border: 1px solid var(--line);
-        border-radius: 10px;
+        border-radius: 6px;
         padding: 14px;
         background: var(--panel-soft);
       }
@@ -799,6 +849,7 @@
         .page-shell { padding: 18px 12px 32px; }
         .hero-card { padding: 18px 16px; }
         .card { padding: 14px; }
+        .table-card { padding: 10px; }
         .card-head h3, #meta h3, #status h3 { font-size: 16px; }
         .fetch-summary { padding: 10px 12px; }
         .fetch-summary-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
@@ -817,6 +868,11 @@
           padding: 7px 4px;
           font-size: 12px;
         }
+        .toolbar, .allocation-toolbar {
+          grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
+          gap: 8px;
+        }
+        .toolbar-field.is-wide { grid-column: auto; }
         .selector-race-button { min-width: 148px; max-width: none; width: 100%; }
         .selector-controls input, .selector-controls select { min-width: 0; width: 100%; }
         .modal-card { padding: 12px; border-radius: 20px; }
@@ -1643,11 +1699,9 @@
                 <button onclick="window.closeAllocationModal()">閉じる</button>
               </div>
               <div class="allocation-toolbar">
-                <span>総資金</span>
-                <input type="number" min="100" step="100" value="${escapeHtml(totalStake)}" onchange="window.changeAllocationTotal(this.value)" />
-                <span>並び順</span>
-                <select onchange="window.changeAllocationSortMode(this.value)">${sortOptions}</select>
-                <span class="muted">総資金は理論配分の初期値です。購入金額列は行ごとに編集できます。</span>
+                ${buildToolbarFieldHtml("総資金", `<input type="number" min="100" step="100" value="${escapeHtml(totalStake)}" onchange="window.changeAllocationTotal(this.value)" />`)}
+                ${buildToolbarFieldHtml("並び順", `<select onchange="window.changeAllocationSortMode(this.value)">${sortOptions}</select>`, true)}
+                ${buildToolbarNoteHtml("総資金は理論配分の初期値です。購入金額列は行ごとに編集できます。")}
               </div>
               <div class="allocation-grid">${cardsHtml || '<p class="muted">表示対象のオッズ列がありません。</p>'}</div>
             </div>
@@ -2771,6 +2825,14 @@
         return `<button class="icon-button" type="button" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" onclick="${onClickJs}">${symbol}</button>`;
       }
 
+      function buildToolbarFieldHtml(label, controlHtml, wide = false) {
+        return `<div class="toolbar-field${wide ? " is-wide" : ""}"><span class="toolbar-label">${escapeHtml(label)}</span>${controlHtml}</div>`;
+      }
+
+      function buildToolbarNoteHtml(text) {
+        return `<p class="toolbar-note">${escapeHtml(text)}</p>`;
+      }
+
       function buildRowMergeKey(tableKey, row) {
         if (tableKey === "c1") {
           return String(row?.horse_no ?? "").trim();
@@ -3028,16 +3090,15 @@
               .join("");
 
             return `
-              <div class="card">
+              <div class="card table-card">
                 <div class="card-head">
                   <h3>${escapeHtml(title)}</h3>
                   <div class="card-actions">${extendedToggleControl}${collapseButton}</div>
                 </div>
                 ${state.collapsed ? "" : `
                 <div class="toolbar">
-                  <span>ソート列</span>
-                  <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
-                  <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+                  ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`, true)}
+                  ${buildToolbarFieldHtml("並び順", `<button type="button" onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>`)}
                 </div>
                 <div class="scroll">
                   <table>
@@ -3060,16 +3121,15 @@
             .join("");
 
           return `
-            <div class="card">
+            <div class="card table-card">
               <div class="card-head">
                 <h3>${escapeHtml(title)}</h3>
                 <div class="card-actions">${extendedToggleControl}${collapseButton}</div>
               </div>
               ${state.collapsed ? "" : `
               <div class="toolbar">
-                <span>ソート列</span>
-                <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
-                <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
+                ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`, true)}
+                ${buildToolbarFieldHtml("並び順", `<button type="button" onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>`)}
               </div>
               <div class="all-split-wrap">
                 <div class="all-fixed">
@@ -3128,32 +3188,19 @@
           .join("");
 
         return `
-          <div class="card">
+          <div class="card table-card">
             <div class="card-head">
               <h3>${escapeHtml(title)}</h3>
               <div class="card-actions">${extendedToggleControl}${collapseButton}</div>
             </div>
             ${state.collapsed ? "" : `
             <div class="toolbar">
-              <span>ソート列</span>
-              <select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>
-              <button onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>
-              ${["c3", "c4", "c5", "c6"].includes(state.key) ? `
-              <span>馬A</span>
-              <select onchange="window.changeGlobalHorseFilter(this.value)">${syncedFilterOptions}</select>
-              ` : ""}
-              ${state.key === "c6" ? `
-              <span>馬B</span>
-              <select onchange="window.changeSecondHorseFilter('${escapeHtml(state.key)}', this.value)">${secondHorseFilterOptions}</select>
-              ` : ""}
-              ${state.filterColumn ? `
-              <span>馬A</span>
-              <select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>
-              ` : ""}
-              ${state.filterColumn2 ? `
-              <span>馬B</span>
-              <select onchange="window.changeFilterValue2('${escapeHtml(state.key)}', this.value)">${filterOptions2}</select>
-              ` : ""}
+              ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`, true)}
+              ${buildToolbarFieldHtml("並び順", `<button type="button" onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>`)}
+              ${["c3", "c4", "c5", "c6"].includes(state.key) ? buildToolbarFieldHtml("馬A", `<select onchange="window.changeGlobalHorseFilter(this.value)">${syncedFilterOptions}</select>`) : ""}
+              ${state.key === "c6" ? buildToolbarFieldHtml("馬B", `<select onchange="window.changeSecondHorseFilter('${escapeHtml(state.key)}', this.value)">${secondHorseFilterOptions}</select>`) : ""}
+              ${state.filterColumn ? buildToolbarFieldHtml("馬A", `<select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>`) : ""}
+              ${state.filterColumn2 ? buildToolbarFieldHtml("馬B", `<select onchange="window.changeFilterValue2('${escapeHtml(state.key)}', this.value)">${filterOptions2}</select>`) : ""}
             </div>
             <div class="scroll">
               <table>
