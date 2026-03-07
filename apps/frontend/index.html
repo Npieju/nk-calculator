@@ -439,6 +439,7 @@
         border-bottom: 1px solid var(--line);
         padding: 8px 10px;
         font-size: 13px;
+        vertical-align: middle;
       }
 
       th:last-child, td:last-child { border-right: none; }
@@ -449,6 +450,10 @@
         background: linear-gradient(180deg, #f7f3ec 0%, #efe7db 100%);
         color: #30433d;
         font-weight: 700;
+        vertical-align: bottom;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
+        line-height: 1.24;
       }
 
       .clickable-row {
@@ -580,26 +585,41 @@
 
       th.col-clip {
         white-space: pre-line;
-        line-height: 1.2;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        overflow-wrap: anywhere;
+        line-height: 1.24;
       }
 
       td.col-clip {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        overflow-wrap: anywhere;
       }
 
-      th.col-num, td.col-num { width: auto; max-width: 8ch; }
-      th.col-horse-no, td.col-horse-no { width: auto; max-width: 6ch; }
-      th.col-text, td.col-text { width: auto; max-width: 9em; }
+      th.col-num { min-width: 7.1em; }
+      td.col-num {
+        min-width: 5.8em;
+        white-space: nowrap;
+      }
+
+      th.col-horse-no, td.col-horse-no {
+        min-width: 4.5em;
+        white-space: nowrap;
+      }
+
+      th.col-text { min-width: 7.2em; }
+      td.col-text {
+        min-width: 7.2em;
+        max-width: 10em;
+        white-space: normal;
+        line-height: 1.35;
+      }
 
       th.col-horse-display, td.col-horse-display {
-        width: 11em;
-        min-width: 11em;
+        min-width: 9em;
         max-width: 11em;
-        white-space: pre;
+      }
+
+      td.col-horse-display {
+        white-space: normal;
+        line-height: 1.35;
       }
 
       @media (max-width: 1180px) {
@@ -609,12 +629,39 @@
         }
       }
 
+      @media (max-width: 900px) {
+        th, td { padding: 7px 8px; font-size: 12.5px; }
+        th.col-num { min-width: 6.3em; }
+        td.col-num { min-width: 5.2em; }
+        th.col-horse-no, td.col-horse-no { min-width: 4em; }
+        th.col-text, td.col-text {
+          min-width: 6.6em;
+          max-width: 8.8em;
+        }
+        th.col-horse-display, td.col-horse-display {
+          min-width: 7.8em;
+          max-width: 9.4em;
+        }
+      }
+
       @media (max-width: 640px) {
         .page-shell { padding: 18px 12px 32px; }
         .hero-card { padding: 22px 18px; }
         .card { padding: 14px; }
         .card-head h3, #meta h3, #status h3 { font-size: 16px; }
         th, td { font-size: 12px; padding: 6px 7px; }
+        thead th { line-height: 1.18; }
+        th.col-num { min-width: 5.7em; }
+        td.col-num { min-width: 4.8em; }
+        th.col-horse-no, td.col-horse-no { min-width: 3.7em; }
+        th.col-text, td.col-text {
+          min-width: 5.9em;
+          max-width: 7.8em;
+        }
+        th.col-horse-display, td.col-horse-display {
+          min-width: 7em;
+          max-width: 8.4em;
+        }
         .excluded-picker { grid-template-columns: repeat(6, minmax(0, 1fr)); }
         .selector-race-button { min-width: 148px; max-width: none; width: 100%; }
         .selector-controls input, .selector-controls select { min-width: 0; width: 100%; }
@@ -896,7 +943,7 @@
 
       function formatCellValue(columnName, value) {
         const c = String(columnName);
-        if (c.includes("horse_no") || c === "horse" || c === "horse_a" || c === "horse_b") {
+        if (c.includes("horse_no") || c === "horse" || c === "horse_a" || c === "horse_b" || c === "horse_c") {
           return value;
         }
         const n = toNumber(value);
@@ -2350,7 +2397,7 @@
 
       function getColumnClass(columnName) {
         const c = String(columnName);
-        if (c === "horse" || c === "horse_a" || c === "horse_b") {
+        if (c === "horse" || c === "horse_a" || c === "horse_b" || c === "horse_c") {
           return "col-clip col-horse-display";
         }
         if (c.includes("horse_no")) {
