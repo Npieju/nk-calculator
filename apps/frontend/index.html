@@ -267,6 +267,96 @@
         color: var(--muted);
       }
 
+      .fetch-summary {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        border: 1px solid rgba(24, 77, 67, 0.12);
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 240, 233, 0.88));
+      }
+
+      .fetch-summary-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .fetch-summary-head h3 {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.3;
+      }
+
+      .fetch-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 8px 14px;
+      }
+
+      .fetch-summary-item {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+
+      .fetch-summary-label {
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .fetch-summary-value {
+        font-size: 13px;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+
+      .fetch-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      .fetch-badge.is-live {
+        color: #1f7a5a;
+        background: rgba(31, 122, 90, 0.1);
+        border-color: rgba(31, 122, 90, 0.14);
+      }
+
+      .fetch-badge.is-server-cache {
+        color: #8f6125;
+        background: rgba(186, 135, 71, 0.14);
+        border-color: rgba(186, 135, 71, 0.18);
+      }
+
+      .fetch-badge.is-client-cache {
+        color: #365d91;
+        background: rgba(88, 130, 193, 0.12);
+        border-color: rgba(88, 130, 193, 0.18);
+      }
+
+      .fetch-badge.is-pending {
+        color: var(--accent-strong);
+        background: rgba(24, 77, 67, 0.08);
+        border-color: rgba(24, 77, 67, 0.12);
+      }
+
+      .fetch-badge.is-error {
+        color: #b4402d;
+        background: rgba(180, 64, 45, 0.1);
+        border-color: rgba(180, 64, 45, 0.14);
+      }
+
       .control-card .row { align-items: flex-end; }
 
       .control-card label:first-child { flex: 1 1 340px; }
@@ -458,6 +548,7 @@
 
       details.info .muted { margin: 6px 0; }
 
+      #fetchSummary:empty,
       #meta:empty,
       #status:empty,
       #tables:empty { display: none; }
@@ -701,6 +792,8 @@
         .hero-card { padding: 22px 18px; }
         .card { padding: 14px; }
         .card-head h3, #meta h3, #status h3 { font-size: 16px; }
+        .fetch-summary { padding: 10px 12px; }
+        .fetch-summary-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
         th, td { font-size: 12px; padding: 6px 7px; }
         thead th { line-height: 1.18; }
         td.col-num { min-width: 4.1em; }
@@ -735,7 +828,7 @@
         <section class="card hero-note">
           <p class="section-eyebrow">Workflow</p>
           <ul class="hero-list">
-            <li>中央・地方の当日レースを起点にすばやく分析</li>
+            <li>中央・地方の当日レースから分析</li>
             <li>同結果の券種差を比較して割高オッズを把握</li>
             <li>行クリックで比例資金配分まで試算</li>
           </ul>
@@ -779,7 +872,7 @@
                 <p class="section-eyebrow">Race Selector</p>
                 <h3>レース選択</h3>
               </div>
-              <p class="card-note">当日開催を起点に、最短で比較表へ入れます。</p>
+              <p class="card-note">当日開催のレースを選んで比較表を開けます。</p>
             </div>
             <div id="raceSelectorTabs" class="selector-tabs"></div>
             <div id="raceSelectorBody"></div>
@@ -811,6 +904,7 @@
                 <button id="exportHtmlBtn" disabled>HTML出力</button>
               </div>
             </div>
+            <div id="fetchSummary"></div>
           </section>
 
           <div id="tables" class="section-stack"></div>
@@ -849,6 +943,7 @@
       const raceSelectorTabsBox = document.getElementById("raceSelectorTabs");
       const raceSelectorBodyBox = document.getElementById("raceSelectorBody");
       const manualUrlDetails = document.getElementById("manualUrlDetails");
+      const fetchSummaryBox = document.getElementById("fetchSummary");
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
       const tablesBox = document.getElementById("tables");
@@ -3312,6 +3407,33 @@
         return date.toLocaleString("ja-JP", { hour12: false });
       }
 
+      function buildFetchSummaryHtml({ badgeClass, badgeText, badgeDetail, race, oddsTimestamp, refreshText }) {
+        return `
+          <div class="fetch-summary-head">
+            <h3>取得状態</h3>
+            <span class="fetch-badge ${escapeHtml(badgeClass)}">${escapeHtml(badgeText)}</span>
+          </div>
+          <div class="fetch-summary-value">${escapeHtml(badgeDetail)}</div>
+          <div class="fetch-summary-grid">
+            <div class="fetch-summary-item">
+              <div class="fetch-summary-label">レース</div>
+              <div class="fetch-summary-value">${escapeHtml(race?.race_name || race?.race_id || "-")}</div>
+            </div>
+            <div class="fetch-summary-item">
+              <div class="fetch-summary-label">オッズ時点</div>
+              <div class="fetch-summary-value">${escapeHtml(formatDateTimeText(oddsTimestamp))}</div>
+            </div>
+            <div class="fetch-summary-item">
+              <div class="fetch-summary-label">取得実行時刻</div>
+              <div class="fetch-summary-value">${escapeHtml(formatDateTimeText(race?.source_fetched_at || race?.analyzed_at || "-"))}</div>
+            </div>
+            <div class="fetch-summary-item">
+              <div class="fetch-summary-label">更新目安</div>
+              <div class="fetch-summary-value">${escapeHtml(refreshText)}</div>
+            </div>
+          </div>`;
+      }
+
       async function runAnalyze(overrideRaceUrl = "") {
         const raceUrlInput = document.getElementById("raceUrl");
         const raceUrl = String(overrideRaceUrl || raceUrlInput?.value || "").trim();
@@ -3322,6 +3444,14 @@
         const forceRefresh = document.getElementById("forceRefresh")?.checked || false;
         const cacheKey = normalizeRaceUrlForClientCache(raceUrl);
 
+        if (fetchSummaryBox) {
+          fetchSummaryBox.innerHTML = `
+            <div class="fetch-summary-head">
+              <h3>取得状態</h3>
+              <span class="fetch-badge is-pending">更新中</span>
+            </div>
+            <div class="fetch-summary-value">最新状態を確認しています。</div>`;
+        }
         metaBox.innerHTML = "実行中...";
         statusBox.innerHTML = "";
         tablesBox.innerHTML = "";
@@ -3357,14 +3487,34 @@
 
           const race = data.race || {};
           const oddsTimestamp = race.odds_updated_at || race.source_fetched_at || "-";
+          const cacheAgeText = race.cache_age_seconds === null || race.cache_age_seconds === undefined || race.cache_age_seconds === ""
+            ? "経過時間不明"
+            : `${race.cache_age_seconds}秒`;
           const cacheText = usedClientCache
-            ? "フロントキャッシュ利用（同一URLを再計算）"
+            ? "フロントキャッシュ利用"
             : race.cache_hit
-            ? `キャッシュ利用（保存: ${formatDateTimeText(race.cache_stored_at)} / 経過: ${escapeHtml(race.cache_age_seconds)}秒）`
-            : "最新取得（スクレイプ実行）";
+            ? `サーバーキャッシュ利用（保存: ${formatDateTimeText(race.cache_stored_at)} / 経過: ${cacheAgeText})`
+            : "最新取得（今回スクレイプ）";
+          const cacheDetail = usedClientCache
+            ? "同一URLの前回取得結果を再利用しています。"
+            : race.cache_hit
+            ? `保存時刻: ${formatDateTimeText(race.cache_stored_at)} / 経過: ${cacheAgeText}`
+            : "キャッシュではなく今回取得した結果です。";
           const refreshText = race.is_past_race
             ? "過去レースのため通常は最新取得不要"
             : "最新確認が必要な場合は「最新取得」を利用";
+          if (fetchSummaryBox) {
+            const badgeClass = usedClientCache ? "is-client-cache" : race.cache_hit ? "is-server-cache" : "is-live";
+            const badgeText = usedClientCache ? "フロントキャッシュ" : race.cache_hit ? "サーバーキャッシュ" : "最新取得";
+            fetchSummaryBox.innerHTML = buildFetchSummaryHtml({
+              badgeClass,
+              badgeText,
+              badgeDetail: cacheDetail,
+              race,
+              oddsTimestamp,
+              refreshText,
+            });
+          }
           metaBox.innerHTML = `
             <h3>レース情報</h3>
             <div>race_id: ${escapeHtml(race.race_id)}</div>
@@ -3372,6 +3522,7 @@
             <div>race_date: ${escapeHtml(race.race_date)}</div>
             <div>オッズ時点: ${escapeHtml(formatDateTimeText(oddsTimestamp))}</div>
             <div>データ取得元: ${escapeHtml(cacheText)}</div>
+            <div>キャッシュ情報: ${escapeHtml(cacheDetail)}</div>
             <div>取得実行時刻: ${escapeHtml(formatDateTimeText(race.source_fetched_at || race.analyzed_at))}</div>
             <div>更新目安: ${escapeHtml(refreshText)}</div>
             <div>analyzed_at: ${escapeHtml(formatDateTimeText(race.analyzed_at || "-"))}</div>
@@ -3495,6 +3646,14 @@
 
           renderTables();
         } catch (err) {
+          if (fetchSummaryBox) {
+            fetchSummaryBox.innerHTML = `
+              <div class="fetch-summary-head">
+                <h3>取得状態</h3>
+                <span class="fetch-badge is-error">取得失敗</span>
+              </div>
+              <div class="fetch-summary-value err">${escapeHtml(err.message || err)}</div>`;
+          }
           metaBox.innerHTML = `<p class="err">${escapeHtml(err.message || err)}</p>`;
           allocationModalState.open = false;
           renderAllocationModal();
