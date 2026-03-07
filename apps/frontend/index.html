@@ -3279,7 +3279,7 @@
         if (!picker) return;
         picker.innerHTML = Array.from({ length: 18 }, (_, idx) => {
           const no = idx + 1;
-          return `<label class="excluded-item"><input type="checkbox" value="${no}" />${no}</label>`;
+          return `<label class="excluded-item"><input type="checkbox" value="${no}" />${escapeHtml(formatCircledHorseNo(no))}</label>`;
         }).join("");
       }
 
