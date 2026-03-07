@@ -26,9 +26,12 @@
       .selector-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
       .selector-tab { border: 1px solid #d1d5db; border-radius: 999px; background: #fff; }
       .selector-tab.is-active { background: #111827; border-color: #111827; color: #fff; }
+      .selector-subtabs { margin: 8px 0 10px; }
       .selector-sections { display: grid; gap: 12px; }
       .selector-section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
       .selector-section h4 { margin: 0 0 8px; font-size: 15px; }
+      .selector-section summary { cursor: pointer; font-weight: 700; }
+      .selector-section[open] summary { margin-bottom: 10px; }
       .selector-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 8px; }
       .selector-controls label { width: auto; max-width: none; }
       .selector-controls input, .selector-controls select { width: auto; min-width: 160px; }
@@ -231,23 +234,27 @@
         activeScope: "jra",
         jra: {
           selectedDate: `${raceSelectorTodayToken.slice(0, 4)}-${raceSelectorTodayToken.slice(4, 6)}-${raceSelectorTodayToken.slice(6, 8)}`,
+          selectedTodayVenue: "",
           selectedVenue: "__all__",
           todayMeetings: [],
           browseMeetings: [],
           availableVenues: [],
           todayLoading: false,
           browseLoading: false,
+          browseOpen: false,
           todayError: "",
           browseError: "",
         },
         nar: {
           selectedDate: `${raceSelectorTodayToken.slice(0, 4)}-${raceSelectorTodayToken.slice(4, 6)}-${raceSelectorTodayToken.slice(6, 8)}`,
+          selectedTodayVenue: "",
           selectedVenue: "__all__",
           todayMeetings: [],
           browseMeetings: [],
           availableVenues: [],
           todayLoading: false,
           browseLoading: false,
+          browseOpen: false,
           todayError: "",
           browseError: "",
         },
@@ -479,6 +486,11 @@
         }).join("")}</div>`;
       }
 
+      function buildVenueTabButtons(scope, venues, selectedVenue, changeHandlerName) {
+        return `<div class="selector-tabs selector-subtabs">${venues.map((venue) => `
+          <button class="selector-tab ${selectedVenue === venue ? "is-active" : ""}" onclick="window.${changeHandlerName}('${scope}', '${escapeHtml(venue)}')">${escapeHtml(venue)}</button>`).join("")}</div>`;
+      }
+
       function buildVenueOptions(scope, availableVenues, selectedVenue) {
         const order = RACE_SELECTOR_COURSE_ORDER[scope] || [];
         const availableSet = new Set((availableVenues || []).map((venue) => String(venue)));
@@ -511,6 +523,10 @@
         const scope = raceSelectorState.activeScope;
         const scopeState = raceSelectorState[scope];
         const selectedDateToken = inputDateToToken(scopeState.selectedDate) || raceSelectorTodayToken;
+        const todayVenueNames = scopeState.todayMeetings.map((meeting) => String(meeting?.venue_name || "")).filter(Boolean);
+        const filteredTodayMeetings = scopeState.selectedTodayVenue
+          ? scopeState.todayMeetings.filter((meeting) => String(meeting?.venue_name || "") === scopeState.selectedTodayVenue)
+          : scopeState.todayMeetings;
         const filteredMeetings = scopeState.selectedVenue === "__all__"
           ? scopeState.browseMeetings
           : scopeState.browseMeetings.filter((meeting) => String(meeting?.venue_name || "") === scopeState.selectedVenue);
@@ -519,10 +535,10 @@
           <div class="selector-sections">
             <section class="selector-section">
               <h4>今日のレース</h4>
-              ${scopeState.todayLoading ? '<p class="muted selector-empty">読み込み中...</p>' : scopeState.todayError ? `<p class="err selector-empty">${escapeHtml(scopeState.todayError)}</p>` : buildMeetingListHtml(scopeState.todayMeetings)}
+              ${scopeState.todayLoading ? '<p class="muted selector-empty">読み込み中...</p>' : scopeState.todayError ? `<p class="err selector-empty">${escapeHtml(scopeState.todayError)}</p>` : `${todayVenueNames.length > 1 ? buildVenueTabButtons(scope, todayVenueNames, scopeState.selectedTodayVenue, 'changeTodayVenue') : ""}${buildMeetingListHtml(filteredTodayMeetings)}`}
             </section>
-            <section class="selector-section">
-              <h4>日付とレース場から選ぶ</h4>
+            <details class="selector-section" ${scopeState.browseOpen ? "open" : ""} ontoggle="window.toggleRaceSelectorBrowse('${scope}', this.open)">
+              <summary>日付とレース場から選ぶ</summary>
               <div class="selector-controls">
                 <label>
                   日付
@@ -538,7 +554,7 @@
               </div>
               <p class="muted">${escapeHtml(`${RACE_SELECTOR_SCOPE_LABELS[scope]} / ${selectedDateToken}`)}</p>
               ${scopeState.browseLoading ? '<p class="muted selector-empty">読み込み中...</p>' : scopeState.browseError ? `<p class="err selector-empty">${escapeHtml(scopeState.browseError)}</p>` : buildMeetingListHtml(filteredMeetings)}
-            </section>
+            </details>
           </div>`;
       }
 
@@ -551,6 +567,10 @@
         try {
           const data = await fetchRaceSelectorData(scope, raceSelectorTodayToken, forceRefresh);
           scopeState.todayMeetings = sortMeetingsByVenue(scope, data?.meetings || []);
+          const todayVenueNames = scopeState.todayMeetings.map((meeting) => String(meeting?.venue_name || "")).filter(Boolean);
+          if (!todayVenueNames.includes(scopeState.selectedTodayVenue)) {
+            scopeState.selectedTodayVenue = todayVenueNames[0] || "";
+          }
           if ((inputDateToToken(scopeState.selectedDate) || raceSelectorTodayToken) === raceSelectorTodayToken && !scopeState.browseLoading) {
             scopeState.browseMeetings = [...scopeState.todayMeetings];
             scopeState.availableVenues = [...(data?.available_venues || [])];
@@ -560,6 +580,7 @@
           }
         } catch (error) {
           scopeState.todayMeetings = [];
+          scopeState.selectedTodayVenue = "";
           scopeState.todayError = error?.message || String(error);
         } finally {
           scopeState.todayLoading = false;
@@ -612,6 +633,13 @@
         renderRaceSelector();
       };
 
+      window.changeTodayVenue = (scope, value) => {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState) return;
+        scopeState.selectedTodayVenue = String(value || "");
+        renderRaceSelector();
+      };
+
       window.changeRaceSelectorDate = (scope, value) => {
         const scopeState = raceSelectorState[scope];
         if (!scopeState) return;
@@ -639,6 +667,12 @@
         const token = inputDateToToken(scopeState.selectedDate);
         if (!token) return;
         loadBrowseRaceSelector(scope, token, true);
+      };
+
+      window.toggleRaceSelectorBrowse = (scope, isOpen) => {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState) return;
+        scopeState.browseOpen = !!isOpen;
       };
 
       function getExportSections(data) {
