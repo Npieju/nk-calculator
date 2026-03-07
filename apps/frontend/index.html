@@ -257,6 +257,7 @@
         totalStake: DEFAULT_ALLOCATION_TOTAL,
         stakeOverrides: {},
         sortMode: "odds_asc",
+        selectedExtendedColumn: "",
       };
       const RACE_SELECTOR_SCOPE_LABELS = {
         jra: "中央",
@@ -877,6 +878,12 @@
 
         const totalStake = normalizeAllocationTotal(allocationModalState.totalStake);
         const oddsColumns = (viewState?.displayColumns || []).filter((columnName) => isOddsColumn(columnName));
+        const extendedColumns = getExtendedColumnsForTable(allocationModalState.tableKey)
+          .filter((columnName) => oddsColumns.includes(columnName));
+        const baseColumns = oddsColumns.filter((columnName) => !extendedColumns.includes(columnName));
+        if (extendedColumns.length && !extendedColumns.includes(allocationModalState.selectedExtendedColumn)) {
+          allocationModalState.selectedExtendedColumn = extendedColumns[0];
+        }
         const sortOptions = [
           ["odds_asc", "オッズが低い順"],
           ["odds_desc", "オッズが高い順"],
@@ -884,7 +891,11 @@
           ["actual_desc", "購入金額が大きい順"],
           ["payout_desc", "払い戻し額が大きい順"],
         ].map(([value, label]) => `<option value="${value}" ${allocationModalState.sortMode === value ? "selected" : ""}>${label}</option>`).join("");
-        const cardsHtml = oddsColumns.map((columnName) => buildAllocationCardHtml(allocationModalState.tableKey, row, columnName, totalStake)).join("");
+        const baseCardsHtml = baseColumns.map((columnName) => buildAllocationCardHtml(allocationModalState.tableKey, row, columnName, totalStake)).join("");
+        const extendedTabsHtml = extendedColumns.length
+          ? `<div><div class="selector-tabs selector-subtabs">${extendedColumns.map((columnName) => `<button class="selector-tab ${allocationModalState.selectedExtendedColumn === columnName ? "is-active" : ""}" onclick="window.changeAllocationExtendedColumn('${columnName}')">${escapeHtml(sanitizeLabelText(formatColumnLabel(columnName)))}</button>`).join("")}</div>${buildAllocationCardHtml(allocationModalState.tableKey, row, allocationModalState.selectedExtendedColumn, totalStake)}</div>`
+          : "";
+        const cardsHtml = `${baseCardsHtml}${extendedTabsHtml}`;
 
         allocationModalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="window.handleAllocationBackdrop(event)">
@@ -2531,6 +2542,7 @@
         allocationModalState.totalStake = DEFAULT_ALLOCATION_TOTAL;
         allocationModalState.stakeOverrides = {};
         allocationModalState.sortMode = "odds_asc";
+        allocationModalState.selectedExtendedColumn = "";
         renderAllocationModal();
       };
 
@@ -2566,6 +2578,11 @@
 
       window.changeAllocationSortMode = (value) => {
         allocationModalState.sortMode = String(value || "odds_asc");
+        renderAllocationModal();
+      };
+
+      window.changeAllocationExtendedColumn = (value) => {
+        allocationModalState.selectedExtendedColumn = String(value || "");
         renderAllocationModal();
       };
 
