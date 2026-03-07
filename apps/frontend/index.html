@@ -92,14 +92,25 @@
         box-shadow: none;
       }
 
-      #runBtn {
+      #reanalyzeBtn {
         background: linear-gradient(135deg, var(--accent) 0%, #2b665b 100%);
         color: #fff;
         border-color: var(--accent);
         box-shadow: 0 12px 24px rgba(24, 77, 67, 0.22);
       }
 
-      #runBtn:hover { background: linear-gradient(135deg, var(--accent-strong) 0%, #22564d 100%); }
+      #reanalyzeBtn:hover { background: linear-gradient(135deg, var(--accent-strong) 0%, #22564d 100%); }
+
+      #refreshBtn {
+        background: var(--panel-soft);
+        border-color: rgba(186, 135, 71, 0.36);
+        color: var(--muted-strong);
+      }
+
+      #refreshBtn:hover {
+        border-color: var(--accent-warm);
+        background: #fffaf3;
+      }
 
       #exportCsvBtn, #exportHtmlBtn { background: var(--panel-soft); }
 
@@ -892,12 +903,9 @@
                 <br />
                 <div id="excludedPicker" class="excluded-picker"></div>
               </label>
-              <label style="width: auto; max-width: none; align-self: end; font-size: 13px;">
-                <input id="forceRefresh" type="checkbox" style="width: auto; margin-right: 6px;" />
-                最新取得（キャッシュ無視）
-              </label>
-              <div style="align-self: end">
-                <button id="runBtn">分析実行</button>
+              <div style="align-self: end; display: flex; gap: 8px; flex-wrap: wrap;">
+                <button id="reanalyzeBtn">再分析</button>
+                <button id="refreshBtn">データ更新</button>
               </div>
               <div style="align-self: end; display: flex; gap: 8px;">
                 <button id="exportCsvBtn" disabled>CSV出力</button>
@@ -937,7 +945,8 @@
     </div>
 
     <script>
-      const runBtn = document.getElementById("runBtn");
+      const reanalyzeBtn = document.getElementById("reanalyzeBtn");
+      const refreshBtn = document.getElementById("refreshBtn");
       const exportCsvBtn = document.getElementById("exportCsvBtn");
       const exportHtmlBtn = document.getElementById("exportHtmlBtn");
       const raceSelectorTabsBox = document.getElementById("raceSelectorTabs");
@@ -3434,14 +3443,30 @@
           </div>`;
       }
 
-      async function runAnalyze(overrideRaceUrl = "") {
+      async function runAnalyze(overrideRaceUrl = "", options = {}) {
         const raceUrlInput = document.getElementById("raceUrl");
         const raceUrl = String(overrideRaceUrl || raceUrlInput?.value || "").trim();
+        const forceRefresh = !!options.forceRefresh;
+        if (!raceUrl) {
+          const message = "レースURLまたはレース選択が必要です。";
+          if (fetchSummaryBox) {
+            fetchSummaryBox.innerHTML = `
+              <div class="fetch-summary-head">
+                <h3>取得状態</h3>
+                <span class="fetch-badge is-error">未選択</span>
+              </div>
+              <div class="fetch-summary-value err">${escapeHtml(message)}</div>`;
+          }
+          metaBox.innerHTML = `<p class="err">${escapeHtml(message)}</p>`;
+          statusBox.innerHTML = "";
+          tablesBox.innerHTML = "";
+          setExportButtonsEnabled(false);
+          return;
+        }
         if (raceUrlInput && raceUrl) {
           raceUrlInput.value = raceUrl;
         }
         const excluded = getExcludedHorses();
-        const forceRefresh = document.getElementById("forceRefresh")?.checked || false;
         const cacheKey = normalizeRaceUrlForClientCache(raceUrl);
 
         if (fetchSummaryBox) {
@@ -3450,7 +3475,7 @@
               <h3>取得状態</h3>
               <span class="fetch-badge is-pending">更新中</span>
             </div>
-            <div class="fetch-summary-value">最新状態を確認しています。</div>`;
+            <div class="fetch-summary-value">${forceRefresh ? "最新データを再取得しています。" : "現在の条件で再分析しています。"}</div>`;
         }
         metaBox.innerHTML = "実行中...";
         statusBox.innerHTML = "";
@@ -3501,8 +3526,8 @@
             ? `保存時刻: ${formatDateTimeText(race.cache_stored_at)} / 経過: ${cacheAgeText}`
             : "キャッシュではなく今回取得した結果です。";
           const refreshText = race.is_past_race
-            ? "過去レースのため通常は最新取得不要"
-            : "最新確認が必要な場合は「最新取得」を利用";
+            ? "過去レースのため通常はデータ更新不要"
+            : "最新確認が必要な場合は「データ更新」を利用";
           if (fetchSummaryBox) {
             const badgeClass = usedClientCache ? "is-client-cache" : race.cache_hit ? "is-server-cache" : "is-live";
             const badgeText = usedClientCache ? "フロントキャッシュ" : race.cache_hit ? "サーバーキャッシュ" : "最新取得";
@@ -3688,7 +3713,8 @@
           window.closeAllocationModal();
         }
       });
-      runBtn.addEventListener("click", runAnalyze);
+      reanalyzeBtn.addEventListener("click", () => runAnalyze());
+      refreshBtn.addEventListener("click", () => runAnalyze("", { forceRefresh: true }));
       exportCsvBtn.addEventListener("click", exportAsCsv);
       exportHtmlBtn.addEventListener("click", exportAsHtml);
     </script>
