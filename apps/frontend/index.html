@@ -27,6 +27,8 @@
         --shadow-soft: 0 1px 0 rgba(31, 36, 31, 0.08);
         --shadow-strong: 0 12px 30px rgba(31, 36, 31, 0.12);
         --radius: 12px;
+        --all-compact-horse-width: 10.6em;
+        --all-compact-win-width: 5.8em;
       }
 
       * { box-sizing: border-box; }
@@ -353,11 +355,40 @@
 
       .control-card label:first-child { flex: 1 1 340px; }
 
+      .control-primary {
+        display: grid;
+        gap: 12px;
+      }
+
+      .control-primary-actions,
+      .control-option-actions,
+      .control-export-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-self: end;
+      }
+
+      .control-options {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line);
+      }
+
+      .control-options > summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .control-options[open] > summary {
+        margin-bottom: 12px;
+      }
+
       .toolbar,
       .allocation-toolbar {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
-        gap: 8px 10px;
+        grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+        gap: 6px 8px;
         align-items: end;
       }
 
@@ -370,13 +401,13 @@
 
       .toolbar,
       .allocation-toolbar {
-        padding: 8px 10px;
+        padding: 6px 8px;
         border: 1px solid var(--line);
         border-radius: 4px;
         background: var(--panel-soft);
       }
 
-      .toolbar { margin: 0 0 12px; }
+      .toolbar { margin: 0 0 10px; }
 
       .allocation-toolbar { margin-bottom: 14px; }
 
@@ -392,7 +423,7 @@
       }
 
       .toolbar-label {
-        font-size: 12px;
+        font-size: 11px;
         line-height: 1.2;
         color: var(--muted);
       }
@@ -402,10 +433,21 @@
       .toolbar-field button {
         width: 100%;
         min-width: 0;
+        padding: 6px 8px;
+        font-size: 12px;
       }
 
-      .toolbar-field button {
-        padding-inline: 12px;
+      .toolbar-toggle-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        white-space: nowrap;
+      }
+
+      .toolbar-toggle-symbol {
+        font-size: 13px;
+        line-height: 1;
       }
 
       .toolbar-note {
@@ -656,6 +698,39 @@
         background: var(--panel-soft);
       }
 
+      .all-compact-sticky-horse,
+      .all-compact-sticky-win {
+        position: sticky;
+        background: var(--panel-strong);
+      }
+
+      .all-compact-sticky-horse {
+        left: 0;
+        min-width: var(--all-compact-horse-width);
+        width: var(--all-compact-horse-width);
+        z-index: 2;
+        box-shadow: 1px 0 0 var(--line);
+      }
+
+      .all-compact-sticky-win {
+        left: calc(var(--all-compact-horse-width) + 1px);
+        min-width: var(--all-compact-win-width);
+        width: var(--all-compact-win-width);
+        z-index: 2;
+        box-shadow: 1px 0 0 var(--line);
+      }
+
+      thead .all-compact-sticky-horse,
+      thead .all-compact-sticky-win {
+        background: var(--panel-soft);
+        z-index: 4;
+      }
+
+      .clickable-row:hover td.all-compact-sticky-horse,
+      .clickable-row:hover td.all-compact-sticky-win {
+        background: rgba(27, 91, 78, 0.06);
+      }
+
       select { padding: 10px 12px; }
 
       .all-split-wrap {
@@ -772,9 +847,9 @@
       .allocation-table td { white-space: nowrap; }
 
       .allocation-table input {
-        width: 86px;
+        width: 72px;
         min-width: 0;
-        padding: 5px 6px;
+        padding: 4px 5px;
         text-align: right;
       }
 
@@ -855,7 +930,7 @@
           font-size: 12px;
         }
         .toolbar, .allocation-toolbar {
-          grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
           gap: 8px;
         }
         .toolbar-field.is-wide { grid-column: auto; }
@@ -947,24 +1022,31 @@
                 <p class="section-eyebrow">分析条件</p>
                 <h3>分析設定</h3>
               </div>
-              <p class="card-note">除外馬、再分析、データ更新、出力をここで扱います。</p>
+              <p class="card-note">取得状態の確認とデータ更新を既定表示にしています。</p>
             </div>
-            <div class="row">
-              <label>
-                消し馬（オッズ計算から除外）
-                <br />
-                <div id="excludedPicker" class="excluded-picker"></div>
-              </label>
-              <div style="align-self: end; display: flex; gap: 8px; flex-wrap: wrap;">
-                <button id="reanalyzeBtn">再分析</button>
+            <div class="control-primary">
+              <div class="control-primary-actions">
                 <button id="refreshBtn">データ更新</button>
               </div>
-              <div style="align-self: end; display: flex; gap: 8px;">
-                <button id="exportCsvBtn" disabled>CSV出力</button>
-                <button id="exportHtmlBtn" disabled>HTML出力</button>
-              </div>
+              <div id="fetchSummary"></div>
             </div>
-            <div id="fetchSummary"></div>
+            <details class="control-options">
+              <summary>オプション</summary>
+              <div class="row">
+                <label>
+                  消し馬（オッズ計算から除外）
+                  <br />
+                  <div id="excludedPicker" class="excluded-picker"></div>
+                </label>
+                <div class="control-option-actions">
+                  <button id="reanalyzeBtn">再分析</button>
+                </div>
+                <div class="control-export-actions">
+                  <button id="exportCsvBtn" disabled>CSV出力</button>
+                  <button id="exportHtmlBtn" disabled>HTML出力</button>
+                </div>
+              </div>
+            </details>
           </section>
 
           <div id="tables" class="section-stack"></div>
@@ -2833,6 +2915,20 @@
         return `<p class="toolbar-note">${escapeHtml(text)}</p>`;
       }
 
+      function buildSortOrderButtonHtml(stateKey, sortOrder) {
+        const isAsc = sortOrder === "asc";
+        const label = isAsc ? "昇順" : "降順";
+        const shortLabel = isAsc ? "昇" : "降";
+        const symbol = isAsc ? "↑" : "↓";
+        return `<button class="toolbar-toggle-button" type="button" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" onclick="window.toggleSortOrder('${escapeHtml(stateKey)}')"><span class="toolbar-toggle-symbol">${symbol}</span><span>${escapeHtml(shortLabel)}</span></button>`;
+      }
+
+      function getAllCompactStickyClass(columnName) {
+        if (columnName === "horse") return " all-compact-sticky-horse";
+        if (columnName === "win_odds") return " all-compact-sticky-win";
+        return "";
+      }
+
       function buildRowMergeKey(tableKey, row) {
         if (tableKey === "c1") {
           return String(row?.horse_no ?? "").trim();
@@ -3084,9 +3180,9 @@
           const scrollColumns = focusedDisplayColumns.filter((c) => !fixedColumns.includes(c));
 
           if (useCompactAllTableLayout) {
-            const compactHead = `<tr>${focusedDisplayColumns.map((c) => `<th class="${getColumnClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
+            const compactHead = `<tr>${focusedDisplayColumns.map((c) => `<th class="${getColumnClass(c)}${getAllCompactStickyClass(c)}">${escapeHtml(formatColumnLabel(c))}</th>`).join("")}</tr>`;
             const compactBody = sortedRows
-              .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${focusedDisplayColumns.map((c) => `<td class="${getColumnClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
+              .map((row, rowIndex) => `<tr class="clickable-row" onclick="window.openAllocationModal('${escapeHtml(state.key)}', ${rowIndex})">${focusedDisplayColumns.map((c) => `<td class="${getColumnClass(c)}${getAllCompactStickyClass(c)}">${escapeHtml(formatCellValue(c, getDisplayValue(row, c)))}</td>`).join("")}</tr>`)
               .join("");
 
             return `
@@ -3097,8 +3193,8 @@
                 </div>
                 ${state.collapsed ? "" : `
                 <div class="toolbar">
-                  ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`, true)}
-                  ${buildToolbarFieldHtml("並び順", `<button type="button" onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>`)}
+                  ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+                  ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
                 </div>
                 <div class="scroll">
                   <table>
@@ -3128,8 +3224,8 @@
               </div>
               ${state.collapsed ? "" : `
               <div class="toolbar">
-                ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`, true)}
-                ${buildToolbarFieldHtml("並び順", `<button type="button" onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>`)}
+                ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+                ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
               </div>
               <div class="all-split-wrap">
                 <div class="all-fixed">
@@ -3195,8 +3291,8 @@
             </div>
             ${state.collapsed ? "" : `
             <div class="toolbar">
-              ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`, true)}
-              ${buildToolbarFieldHtml("並び順", `<button type="button" onclick="window.toggleSortOrder('${escapeHtml(state.key)}')">${state.sortOrder === "asc" ? "昇順" : "降順"}</button>`)}
+              ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
+              ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
               ${["c3", "c4", "c5", "c6"].includes(state.key) ? buildToolbarFieldHtml("馬A", `<select onchange="window.changeGlobalHorseFilter(this.value)">${syncedFilterOptions}</select>`) : ""}
               ${state.key === "c6" ? buildToolbarFieldHtml("馬B", `<select onchange="window.changeSecondHorseFilter('${escapeHtml(state.key)}', this.value)">${secondHorseFilterOptions}</select>`) : ""}
               ${state.filterColumn ? buildToolbarFieldHtml("馬A", `<select onchange="window.changeFilterValue('${escapeHtml(state.key)}', this.value)">${filterOptions}</select>`) : ""}
