@@ -5,28 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>券種水平オッズ比較 | nk-calculator</title>
     <style>
-      @import url("https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@400;700&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap");
 
       :root {
         --font-ui: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", sans-serif;
-        --font-title: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
-        --bg: #f3efe7;
-        --bg-deep: #ece4d7;
-        --panel: rgba(255, 252, 247, 0.88);
-        --panel-strong: rgba(255, 255, 255, 0.96);
-        --panel-soft: rgba(245, 240, 232, 0.78);
-        --line: #d7cfc2;
-        --line-strong: #b8ab98;
-        --text: #1f2c27;
-        --muted: #60706a;
-        --muted-strong: #44534e;
-        --accent: #184d43;
-        --accent-strong: #103c35;
-        --accent-soft: rgba(24, 77, 67, 0.08);
-        --accent-warm: #ba8747;
-        --shadow-soft: 0 18px 48px rgba(25, 36, 33, 0.08);
-        --shadow-strong: 0 28px 90px rgba(13, 24, 21, 0.28);
-        --radius: 20px;
+        --font-title: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", sans-serif;
+        --bg: #f4f1ea;
+        --bg-deep: #ece7dc;
+        --panel: #fbfaf6;
+        --panel-strong: #fffdf9;
+        --panel-soft: #f2eee5;
+        --line: #d1cabd;
+        --line-strong: #ab9f8d;
+        --text: #1f241f;
+        --muted: #646a64;
+        --muted-strong: #3f4740;
+        --accent: #2e3b35;
+        --accent-strong: #25302b;
+        --accent-soft: rgba(46, 59, 53, 0.06);
+        --accent-warm: #8d785b;
+        --shadow-soft: 0 1px 0 rgba(31, 36, 31, 0.08);
+        --shadow-strong: 0 12px 30px rgba(31, 36, 31, 0.12);
+        --radius: 12px;
       }
 
       * { box-sizing: border-box; }
@@ -36,9 +36,10 @@
       body {
         margin: 0;
         background:
-          radial-gradient(circle at top left, rgba(186, 135, 71, 0.15), transparent 34%),
-          radial-gradient(circle at bottom right, rgba(24, 77, 67, 0.08), transparent 28%),
+          linear-gradient(rgba(46, 59, 53, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(46, 59, 53, 0.035) 1px, transparent 1px),
           linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+        background-size: 32px 32px, 32px 32px, auto;
         color: var(--text);
         font-family: var(--font-ui);
         font-variant-numeric: lining-nums tabular-nums;
@@ -63,33 +64,33 @@
         width: 100%;
         min-width: 0;
         border: 1px solid var(--line);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.92);
+        border-radius: 10px;
+        background: var(--panel-strong);
         color: var(--text);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        box-shadow: none;
       }
 
       input:focus, select:focus {
         outline: none;
         border-color: var(--accent);
-        box-shadow: 0 0 0 4px rgba(24, 77, 67, 0.12);
+        box-shadow: 0 0 0 3px rgba(46, 59, 53, 0.12);
       }
 
       button {
         padding: 10px 16px;
         border: 1px solid var(--line-strong);
-        border-radius: 999px;
+        border-radius: 10px;
         background: var(--panel-strong);
         color: var(--text);
         cursor: pointer;
-        transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
-        box-shadow: 0 8px 18px rgba(25, 36, 33, 0.06);
+        transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+        box-shadow: none;
+        font-weight: 700;
       }
 
       button:hover {
-        transform: translateY(-1px);
         border-color: var(--accent);
-        background: #fff;
+        background: var(--panel-soft);
       }
 
       button:disabled {
@@ -100,23 +101,22 @@
       }
 
       #reanalyzeBtn {
-        background: linear-gradient(135deg, var(--accent) 0%, #2b665b 100%);
+        background: var(--accent);
         color: #fff;
         border-color: var(--accent);
-        box-shadow: 0 12px 24px rgba(24, 77, 67, 0.22);
       }
 
-      #reanalyzeBtn:hover { background: linear-gradient(135deg, var(--accent-strong) 0%, #22564d 100%); }
+      #reanalyzeBtn:hover { background: var(--accent-strong); }
 
       #refreshBtn {
         background: var(--panel-soft);
-        border-color: rgba(186, 135, 71, 0.36);
+        border-color: var(--line);
         color: var(--muted-strong);
       }
 
       #refreshBtn:hover {
-        border-color: var(--accent-warm);
-        background: #fffaf3;
+        border-color: var(--line-strong);
+        background: #f7f3eb;
       }
 
       #exportCsvBtn, #exportHtmlBtn { background: var(--panel-soft); }
@@ -124,54 +124,54 @@
       .page-shell {
         max-width: 1500px;
         margin: 0 auto;
-        padding: 32px 20px 48px;
+        padding: 24px 18px 40px;
       }
 
       .hero {
         display: grid;
-        grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.9fr);
-        gap: 18px;
-        margin-bottom: 20px;
+        grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+        gap: 16px;
+        margin-bottom: 16px;
       }
 
       .hero-card {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(244, 249, 246, 0.9));
-        padding: 28px;
+        background: var(--panel-strong);
+        padding: 22px;
+        border-top: 3px solid var(--accent);
       }
 
       .hero-note {
         display: grid;
-        gap: 12px;
+        gap: 8px;
         align-content: start;
       }
 
       .section-eyebrow {
         margin: 0 0 8px;
         font-size: 11px;
-        letter-spacing: 0.18em;
-        text-transform: uppercase;
-        color: var(--accent);
+        letter-spacing: 0.08em;
+        color: var(--muted);
         font-weight: 700;
       }
 
       .brand-eyebrow {
-        text-transform: none;
-        letter-spacing: 0.08em;
+        color: var(--accent);
+        letter-spacing: 0.06em;
       }
 
       h1 {
         margin: 0;
         font-family: var(--font-title);
-        font-size: clamp(38px, 6vw, 62px);
+        font-size: clamp(34px, 5.4vw, 52px);
         font-weight: 700;
-        line-height: 1.02;
-        letter-spacing: 0.03em;
+        line-height: 1.12;
+        letter-spacing: 0.01em;
       }
 
       .lead {
-        margin: 12px 0 0;
-        max-width: 820px;
-        font-size: 16px;
+        margin: 10px 0 0;
+        max-width: 720px;
+        font-size: 15px;
         color: var(--muted-strong);
       }
 
@@ -180,26 +180,16 @@
         margin: 0;
         padding: 0;
         display: grid;
-        gap: 10px;
+        gap: 0;
       }
 
       .hero-list li {
-        position: relative;
-        padding-left: 18px;
+        padding: 10px 0;
         color: var(--muted-strong);
+        border-top: 1px solid var(--line);
       }
 
-      .hero-list li::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        top: 0.72em;
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: var(--accent-warm);
-        box-shadow: 0 0 0 4px rgba(186, 135, 71, 0.12);
-      }
+      .hero-list li:first-child { border-top: none; }
 
       .dashboard-grid {
         display: grid;
@@ -207,7 +197,7 @@
         grid-template-areas:
           "main info"
           "main side";
-        gap: 18px;
+        gap: 16px;
         align-items: start;
       }
 
@@ -238,10 +228,9 @@
       .card {
         border: 1px solid var(--line);
         border-radius: var(--radius);
-        background: var(--panel);
+        background: var(--panel-strong);
         box-shadow: var(--shadow-soft);
-        backdrop-filter: blur(8px);
-        padding: 18px;
+        padding: 16px;
         margin: 0;
         min-width: 0;
         max-width: 100%;
@@ -253,6 +242,8 @@
         align-items: flex-start;
         gap: 12px;
         margin-bottom: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--line);
       }
 
       .card-actions {
@@ -274,7 +265,7 @@
         width: 2.25rem;
         height: 2.25rem;
         padding: 0;
-        border-radius: 999px;
+        border-radius: 8px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -296,9 +287,9 @@
         gap: 10px;
         margin-top: 14px;
         padding: 12px 14px;
-        border: 1px solid rgba(24, 77, 67, 0.12);
-        border-radius: 16px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 240, 233, 0.88));
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel-soft);
       }
 
       .fetch-summary-head {
@@ -397,8 +388,8 @@
       .toolbar,
       .allocation-toolbar {
         padding: 10px 12px;
-        border: 1px solid rgba(24, 77, 67, 0.08);
-        border-radius: 16px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
         background: var(--panel-soft);
       }
 
@@ -437,8 +428,8 @@
 
       .selector-tab {
         border: 1px solid var(--line);
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.92);
+        border-radius: 8px;
+        background: var(--panel-strong);
         color: var(--muted-strong);
         box-shadow: none;
       }
@@ -454,9 +445,9 @@
       .selector-sections { display: grid; gap: 12px; }
 
       .selector-section {
-        border: 1px solid rgba(34, 67, 58, 0.1);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.68);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel-soft);
         padding: 14px;
       }
 
@@ -476,9 +467,9 @@
       .selector-meeting-list { display: grid; gap: 12px; }
 
       .selector-meeting {
-        border: 1px solid rgba(34, 67, 58, 0.12);
-        border-radius: 16px;
-        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel-strong);
         padding: 12px;
       }
 
@@ -503,16 +494,15 @@
         min-width: 174px;
         max-width: 240px;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        background: linear-gradient(180deg, #fff 0%, #f7f4ee 100%);
+        border-radius: 10px;
+        background: var(--panel-strong);
         text-align: left;
         box-shadow: none;
       }
 
       .selector-race-button:hover {
-        background: #fff;
+        background: var(--panel-soft);
         border-color: var(--accent);
-        transform: translateY(-1px);
       }
 
       .selector-race-label {
@@ -550,8 +540,8 @@
         min-height: 42px;
         padding: 8px 6px;
         border: 1px solid var(--line);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.72);
+        border-radius: 10px;
+        background: var(--panel-strong);
         font-size: 13px;
         line-height: 1;
       }
@@ -591,9 +581,9 @@
         min-width: 0;
         margin-top: 8px;
         table-layout: auto;
-        background: #fff;
+        background: var(--panel-strong);
         border: 1px solid var(--line);
-        border-radius: 16px;
+        border-radius: 10px;
         overflow: hidden;
       }
 
@@ -611,8 +601,8 @@
       tbody tr:last-child td { border-bottom: none; }
 
       thead th {
-        background: linear-gradient(180deg, #f7f3ec 0%, #efe7db 100%);
-        color: #30433d;
+        background: var(--panel-soft);
+        color: var(--muted-strong);
         font-weight: 700;
         vertical-align: bottom;
         white-space: pre-line;
@@ -645,7 +635,7 @@
 
       th.sticky-col {
         z-index: 3;
-        background: linear-gradient(180deg, #f7f3ec 0%, #efe7db 100%);
+        background: var(--panel-soft);
       }
 
       select { padding: 10px 12px; }
@@ -685,19 +675,18 @@
         align-items: center;
         justify-content: center;
         padding: 16px;
-        background: rgba(19, 34, 31, 0.58);
-        backdrop-filter: blur(4px);
+        background: rgba(24, 30, 27, 0.42);
       }
 
       .modal-card {
         width: min(1120px, 100%);
         max-height: min(88vh, 960px);
         overflow: auto;
-        border-radius: 24px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 246, 241, 0.98));
+        border-radius: 12px;
+        background: var(--panel-strong);
         padding: 18px;
         box-shadow: var(--shadow-strong);
-        border: 1px solid rgba(255, 255, 255, 0.6);
+        border: 1px solid var(--line-strong);
       }
 
       .modal-head {
@@ -722,10 +711,10 @@
       }
 
       .allocation-card {
-        border: 1px solid rgba(34, 67, 58, 0.12);
-        border-radius: 18px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
         padding: 14px;
-        background: rgba(255, 255, 255, 0.78);
+        background: var(--panel-soft);
       }
 
       .allocation-card h4 { margin: 0 0 10px; font-size: 14px; }
@@ -814,7 +803,7 @@
 
       @media (max-width: 640px) {
         .page-shell { padding: 18px 12px 32px; }
-        .hero-card { padding: 22px 18px; }
+        .hero-card { padding: 18px 16px; }
         .card { padding: 14px; }
         .card-head h3, #meta h3, #status h3 { font-size: 16px; }
         .fetch-summary { padding: 10px 12px; }
@@ -851,11 +840,11 @@
           <p class="lead">オッズを解析して券種ごとのオッズの歪みを可視化します。予想後の買い目最適化に利用してください。</p>
         </section>
         <section class="card hero-note">
-          <p class="section-eyebrow">Workflow</p>
+          <p class="section-eyebrow">用途</p>
           <ul class="hero-list">
-            <li>中央・地方の当日レースから分析</li>
-            <li>同結果の券種差を比較して割高オッズを把握</li>
-            <li>行クリックで比例資金配分まで試算</li>
+            <li>中央・地方・海外の対象レースを指定</li>
+            <li>同一的中条件の券種オッズを横並びで比較</li>
+            <li>行単位で資金配分の例まで確認</li>
           </ul>
         </section>
       </header>
@@ -894,10 +883,10 @@
           <section class="card card-emphasis">
             <div class="card-head">
               <div>
-                <p class="section-eyebrow">Race Selector</p>
+                <p class="section-eyebrow">対象指定</p>
                 <h3>レース選択</h3>
               </div>
-              <p class="card-note">当日開催のレースを選んで比較表を開けます。</p>
+              <p class="card-note">開催レース一覧、日付、URL入力から対象を指定します。</p>
             </div>
             <div id="raceSelectorTabs" class="selector-tabs"></div>
             <div id="raceSelectorBody"></div>
@@ -906,10 +895,10 @@
           <section class="card control-card">
             <div class="card-head">
               <div>
-                <p class="section-eyebrow">Analysis Controls</p>
+                <p class="section-eyebrow">分析条件</p>
                 <h3>分析設定</h3>
               </div>
-              <p class="card-note">除外条件や取得方法を調整して、比較を絞り込みます。</p>
+              <p class="card-note">除外馬、再分析、データ更新、出力をここで扱います。</p>
             </div>
             <div class="row">
               <label>
