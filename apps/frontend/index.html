@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>nk-odds-compare</title>
+    <title>券種水平オッズ比較 | nk-calculator</title>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDPMincho:wght@400;700&display=swap");
 
@@ -152,6 +152,11 @@
         text-transform: uppercase;
         color: var(--accent);
         font-weight: 700;
+      }
+
+      .brand-eyebrow {
+        text-transform: none;
+        letter-spacing: 0.08em;
       }
 
       h1 {
@@ -841,8 +846,8 @@
     <div class="page-shell">
       <header class="hero">
         <section class="card hero-card">
-          <p class="section-eyebrow">Value Odds Viewer</p>
-          <h1>nk-odds-compare</h1>
+          <p class="section-eyebrow brand-eyebrow">nk-calculator</p>
+          <h1>券種水平オッズ比較</h1>
           <p class="lead">オッズを解析して券種ごとのオッズの歪みを可視化します。予想後の買い目最適化に利用してください。</p>
         </section>
         <section class="card hero-note">
@@ -1911,7 +1916,7 @@
         }
 
         const raceId = String(race.race_id || "race").trim() || "race";
-        downloadTextFile(lines.join("\n"), `nk-odds-compare_${raceId}.csv`, "text/csv;charset=utf-8");
+        downloadTextFile(lines.join("\n"), `nk-calculator_${raceId}.csv`, "text/csv;charset=utf-8");
       }
 
       function exportAsHtml() {
@@ -1943,7 +1948,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>nk-odds-compare export</title>
+    <title>nk-calculator export</title>
     <style>
       body { font-family: system-ui, -apple-system, sans-serif; margin: 20px; color: #111; }
       h1 { margin: 0 0 8px; font-size: 20px; }
@@ -1957,14 +1962,14 @@
     </style>
   </head>
   <body>
-    <h1>nk-odds-compare 出力</h1>
+    <h1>nk-calculator 出力</h1>
     <p class="meta">race_id: ${escapeHtml(race.race_id || "-")} / race_name: ${escapeHtml(race.race_name || "-")} / analyzed_at: ${escapeHtml(formatDateTimeText(race.analyzed_at || ""))}</p>
     ${blocks.join("\n")}
   </body>
 </html>`;
 
         const raceId = String(race.race_id || "race").trim() || "race";
-        downloadTextFile(html, `nk-odds-compare_${raceId}.html`, "text/html;charset=utf-8");
+        downloadTextFile(html, `nk-calculator_${raceId}.html`, "text/html;charset=utf-8");
       }
 
       function normalizeHorseNo(value) {
