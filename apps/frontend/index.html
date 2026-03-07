@@ -145,28 +145,12 @@
         align-content: start;
       }
 
-      .hero-title-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 6px 12px;
-      }
-
-      .hero-title-row .section-eyebrow {
-        margin: 0;
-      }
-
       .section-eyebrow {
         margin: 0 0 8px;
         font-size: 11px;
         letter-spacing: 0.05em;
         color: var(--muted);
         font-weight: 700;
-      }
-
-      .brand-eyebrow {
-        color: var(--muted);
-        letter-spacing: 0.04em;
       }
 
       h1 {
@@ -815,7 +799,6 @@
         .page-shell { padding: 18px 12px 32px; }
         .hero-card { padding: 18px 16px; }
         .card { padding: 14px; }
-        .hero-title-row { gap: 4px 10px; }
         .card-head h3, #meta h3, #status h3 { font-size: 16px; }
         .fetch-summary { padding: 10px 12px; }
         .fetch-summary-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
@@ -846,10 +829,7 @@
     <div class="page-shell">
       <header class="hero">
         <section class="card hero-card">
-          <div class="hero-title-row">
-            <p class="section-eyebrow brand-eyebrow">nk-calculator</p>
-            <h1>券種水平オッズ比較</h1>
-          </div>
+          <h1>券種水平オッズ比較</h1>
           <p class="lead">オッズを解析して券種ごとのオッズの歪みを可視化します。予想後の買い目最適化に利用してください。</p>
         </section>
         <section class="card hero-note">
