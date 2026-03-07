@@ -16,7 +16,7 @@ CORE_DIR = ROOT_DIR / "packages" / "core"
 if str(CORE_DIR) not in sys.path:
     sys.path.insert(0, str(CORE_DIR))
 
-from nk_core import analyze_race
+from nk_core import analyze_race, list_races
 
 app = FastAPI(title="nk-calculator-api", version="0.1.0")
 
@@ -49,6 +49,16 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/v1/race-selector")
+def race_selector(scope: str, date: str, force_refresh: bool = False) -> dict:
+    try:
+        return list_races(scope=scope, date=date, force_refresh=force_refresh)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"レース一覧の取得に失敗しました: {exc}") from exc
+
+
 def _normalize_race_url(raw_url: str) -> str:
     race_url = str(raw_url).strip()
     parsed = urlparse(race_url)
@@ -61,6 +71,8 @@ def _normalize_race_url(raw_url: str) -> str:
 
     if host == "race.sp.netkeiba.com":
         host = "race.netkeiba.com"
+    if host == "nar.sp.netkeiba.com":
+        host = "nar.netkeiba.com"
 
     if host not in {"race.netkeiba.com", "nar.netkeiba.com"}:
         return race_url

@@ -23,6 +23,25 @@
       .hl-low { color: #9ca3af; }
       .hl-high-2nd { background: #dbeafe; font-weight: 700; }
       .hl-low-2nd { color: #6b7280; }
+      .selector-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+      .selector-tab { border: 1px solid #d1d5db; border-radius: 999px; background: #fff; }
+      .selector-tab.is-active { background: #111827; border-color: #111827; color: #fff; }
+      .selector-sections { display: grid; gap: 12px; }
+      .selector-section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+      .selector-section h4 { margin: 0 0 8px; font-size: 15px; }
+      .selector-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 8px; }
+      .selector-controls label { width: auto; max-width: none; }
+      .selector-controls input, .selector-controls select { width: auto; min-width: 160px; }
+      .selector-meeting-list { display: grid; gap: 10px; }
+      .selector-meeting { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; }
+      .selector-meeting-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+      .selector-meeting-head h5 { margin: 0; font-size: 14px; }
+      .selector-race-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .selector-race-button { min-width: 172px; max-width: 220px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; text-align: left; }
+      .selector-race-button:hover { background: #f9fafb; }
+      .selector-race-label { font-weight: 700; margin-bottom: 2px; }
+      .selector-race-meta { font-size: 12px; color: #4b5563; line-height: 1.35; white-space: normal; }
+      .selector-empty { margin: 0; }
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .sticky-col {
         position: sticky;
@@ -81,12 +100,14 @@
         .card-head h3 { font-size: 16px; margin: 0; }
         th, td { font-size: 12px; padding: 5px 6px; }
         .excluded-picker { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+        .selector-race-button { min-width: 148px; max-width: none; width: 100%; }
+        .selector-controls input, .selector-controls select { min-width: 0; width: 100%; }
       }
     </style>
   </head>
   <body>
     <h1>nk-calculator</h1>
-    <p class="muted">netkeibaレースURLからオッズを比較します。</p>
+    <p class="muted">netkeibaレースを選んでオッズを比較します。URL入力は副機能です。</p>
     <p class="muted">対応URL: netkeiba のレース関連ページ（`race.netkeiba.com` / `race.sp.netkeiba.com` / `nar.netkeiba.com` で `race_id=...` を含むURL）</p>
     <p class="muted">
       レース選択はこちらから:
@@ -123,13 +144,24 @@
         <li>資金配分は `1/オッズ` 比例で行うと、合成オッズに近い配分になります（100円単位で最終調整）。</li>
       </ul>
     </details>
-    <div class="row">
-      <label>
-        レースURL
-        <br />
-        <input id="raceUrl" value="https://race.netkeiba.com/race/shutuba.html?race_id=202608020611&rf=race_list" />
-      </label>
+    <div class="card">
+      <div class="card-head">
+        <h3>レース選択</h3>
+      </div>
+      <div id="raceSelectorTabs" class="selector-tabs"></div>
+      <div id="raceSelectorBody"></div>
     </div>
+
+    <details id="manualUrlDetails" class="card">
+      <summary>URL入力（副機能）</summary>
+      <div class="row" style="margin-top: 12px;">
+        <label>
+          レースURL
+          <br />
+          <input id="raceUrl" value="https://race.netkeiba.com/race/shutuba.html?race_id=202608020611&rf=race_list" />
+        </label>
+      </div>
+    </details>
     <div class="row">
       <label>
         消し馬（オッズ計算から除外）
@@ -157,6 +189,9 @@
       const runBtn = document.getElementById("runBtn");
       const exportCsvBtn = document.getElementById("exportCsvBtn");
       const exportHtmlBtn = document.getElementById("exportHtmlBtn");
+      const raceSelectorTabsBox = document.getElementById("raceSelectorTabs");
+      const raceSelectorBodyBox = document.getElementById("raceSelectorBody");
+      const manualUrlDetails = document.getElementById("manualUrlDetails");
       const metaBox = document.getElementById("meta");
       const statusBox = document.getElementById("status");
       const tablesBox = document.getElementById("tables");
@@ -173,8 +208,50 @@
       let extendedStates = {};
       let lastAnalyzeData = null;
       const scrapedCacheByUrl = new Map();
+      const raceSelectorCacheByScopeDate = new Map();
       const CLIENT_CACHE_STORAGE_KEY = "nk_calculator_scraped_cache_v1";
       const CLIENT_CACHE_MAX_ENTRIES = 20;
+      const RACE_SELECTOR_SCOPE_LABELS = {
+        jra: "中央",
+        nar: "地方",
+        overseas: "海外",
+      };
+      const RACE_SELECTOR_COURSE_ORDER = {
+        jra: ["中山", "東京", "京都", "阪神", "福島", "新潟", "中京", "小倉", "札幌", "函館"],
+        nar: ["浦和", "船橋", "大井", "川崎", "門別", "盛岡", "水沢", "金沢", "笠松", "名古屋", "園田", "姫路", "高知", "佐賀", "帯広(ば)"],
+      };
+      const raceSelectorTodayToken = (() => {
+        const now = new Date();
+        const yyyy = String(now.getFullYear());
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const dd = String(now.getDate()).padStart(2, "0");
+        return `${yyyy}${mm}${dd}`;
+      })();
+      const raceSelectorState = {
+        activeScope: "jra",
+        jra: {
+          selectedDate: `${raceSelectorTodayToken.slice(0, 4)}-${raceSelectorTodayToken.slice(4, 6)}-${raceSelectorTodayToken.slice(6, 8)}`,
+          selectedVenue: "__all__",
+          todayMeetings: [],
+          browseMeetings: [],
+          availableVenues: [],
+          todayLoading: false,
+          browseLoading: false,
+          todayError: "",
+          browseError: "",
+        },
+        nar: {
+          selectedDate: `${raceSelectorTodayToken.slice(0, 4)}-${raceSelectorTodayToken.slice(4, 6)}-${raceSelectorTodayToken.slice(6, 8)}`,
+          selectedVenue: "__all__",
+          todayMeetings: [],
+          browseMeetings: [],
+          availableVenues: [],
+          todayLoading: false,
+          browseLoading: false,
+          todayError: "",
+          browseError: "",
+        },
+      };
       const EXPORT_SECTIONS = [
         { key: "all_market_compare", title: "全券種比較（全流し合成オッズ）" },
         { key: "compare1", title: "単勝系: 単勝 / 馬単1着流し / 三連単1着流し" },
@@ -278,8 +355,17 @@
         if (!text) return "";
         try {
           const parsed = new URL(text);
-          if (String(parsed.hostname || "").toLowerCase() === "race.sp.netkeiba.com") {
+          const host = String(parsed.hostname || "").toLowerCase();
+          const raceId = String(parsed.searchParams.get("race_id") || "").trim();
+          if (host === "race.sp.netkeiba.com") {
             parsed.hostname = "race.netkeiba.com";
+          }
+          if (host === "nar.sp.netkeiba.com") {
+            parsed.hostname = "nar.netkeiba.com";
+          }
+          const normalizedHost = String(parsed.hostname || "").toLowerCase();
+          if (raceId && ["race.netkeiba.com", "nar.netkeiba.com"].includes(normalizedHost)) {
+            return `https://${normalizedHost}/race/shutuba.html?race_id=${encodeURIComponent(raceId)}`;
           }
           parsed.pathname = `/${String(parsed.pathname || "").replace(/^\/+/, "")}`;
           return parsed.toString();
@@ -330,6 +416,230 @@
           // noop
         }
       }
+
+      function inputDateToToken(value) {
+        const digits = String(value ?? "").replace(/\D/g, "");
+        return digits.length === 8 ? digits : "";
+      }
+
+      function sortMeetingsByVenue(scope, meetings) {
+        const order = RACE_SELECTOR_COURSE_ORDER[scope] || [];
+        const orderMap = new Map(order.map((venue, index) => [venue, index]));
+        return [...(meetings || [])].sort((left, right) => {
+          const leftVenue = String(left?.venue_name ?? "");
+          const rightVenue = String(right?.venue_name ?? "");
+          const leftIndex = orderMap.has(leftVenue) ? orderMap.get(leftVenue) : 999;
+          const rightIndex = orderMap.has(rightVenue) ? orderMap.get(rightVenue) : 999;
+          if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+          return leftVenue.localeCompare(rightVenue, "ja");
+        });
+      }
+
+      async function fetchRaceSelectorData(scope, dateToken, forceRefresh = false) {
+        const cacheKey = `${scope}|${dateToken}`;
+        if (!forceRefresh && raceSelectorCacheByScopeDate.has(cacheKey)) {
+          return raceSelectorCacheByScopeDate.get(cacheKey);
+        }
+
+        const url = new URL(`${API_BASE_URL}/v1/race-selector`);
+        url.searchParams.set("scope", scope);
+        url.searchParams.set("date", dateToken);
+        if (forceRefresh) {
+          url.searchParams.set("force_refresh", "true");
+        }
+
+        const resp = await fetch(url.toString());
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data?.detail || `HTTP ${resp.status}`);
+        }
+        raceSelectorCacheByScopeDate.set(cacheKey, data);
+        return data;
+      }
+
+      function buildMeetingListHtml(meetings) {
+        if (!meetings.length) {
+          return '<p class="muted selector-empty">対象レースがありません。</p>';
+        }
+        return `<div class="selector-meeting-list">${meetings.map((meeting) => {
+          const venueTitle = meeting?.venue_name || meeting?.meeting_title || "";
+          const racesHtml = (meeting?.races || []).map((race) => `
+            <button class="selector-race-button" data-race-url="${escapeHtml(race?.race_url || "")}" onclick="window.runAnalyzeForRace(this.dataset.raceUrl)">
+              <div class="selector-race-label">${escapeHtml(race?.race_no_text || `${race?.race_no || ""}R`)}</div>
+              <div class="selector-race-meta">${escapeHtml([race?.start_time, race?.race_title, race?.distance].filter(Boolean).join(" / "))}</div>
+            </button>`).join("");
+          return `
+            <section class="selector-meeting">
+              <div class="selector-meeting-head">
+                <h5>${escapeHtml(venueTitle)}</h5>
+                <div class="muted">${escapeHtml(meeting?.meeting_title || "")}</div>
+              </div>
+              <div class="selector-race-grid">${racesHtml}</div>
+            </section>`;
+        }).join("")}</div>`;
+      }
+
+      function buildVenueOptions(scope, availableVenues, selectedVenue) {
+        const order = RACE_SELECTOR_COURSE_ORDER[scope] || [];
+        const availableSet = new Set((availableVenues || []).map((venue) => String(venue)));
+        const ordered = order.filter((venue) => availableSet.has(venue));
+        const extras = [...availableSet].filter((venue) => !ordered.includes(venue)).sort((a, b) => a.localeCompare(b, "ja"));
+        const venues = [...ordered, ...extras];
+        return [`<option value="__all__" ${selectedVenue === "__all__" ? "selected" : ""}>全場</option>`]
+          .concat(venues.map((venue) => `<option value="${escapeHtml(venue)}" ${selectedVenue === venue ? "selected" : ""}>${escapeHtml(venue)}</option>`))
+          .join("");
+      }
+
+      function renderRaceSelector() {
+        if (!raceSelectorTabsBox || !raceSelectorBodyBox) return;
+
+        raceSelectorTabsBox.innerHTML = Object.entries(RACE_SELECTOR_SCOPE_LABELS)
+          .map(([scope, label]) => `<button class="selector-tab ${raceSelectorState.activeScope === scope ? "is-active" : ""}" onclick="window.changeRaceSelectorScope('${scope}')">${escapeHtml(label)}</button>`)
+          .join("");
+
+        if (raceSelectorState.activeScope === "overseas") {
+          if (manualUrlDetails) manualUrlDetails.open = true;
+          raceSelectorBodyBox.innerHTML = `
+            <div class="selector-section">
+              <h4>海外</h4>
+              <p class="muted">海外レースはURL入力から分析します。対応URLを貼って「分析実行」を使ってください。</p>
+            </div>`;
+          return;
+        }
+
+        if (manualUrlDetails) manualUrlDetails.open = false;
+        const scope = raceSelectorState.activeScope;
+        const scopeState = raceSelectorState[scope];
+        const selectedDateToken = inputDateToToken(scopeState.selectedDate) || raceSelectorTodayToken;
+        const filteredMeetings = scopeState.selectedVenue === "__all__"
+          ? scopeState.browseMeetings
+          : scopeState.browseMeetings.filter((meeting) => String(meeting?.venue_name || "") === scopeState.selectedVenue);
+
+        raceSelectorBodyBox.innerHTML = `
+          <div class="selector-sections">
+            <section class="selector-section">
+              <h4>今日のレース</h4>
+              ${scopeState.todayLoading ? '<p class="muted selector-empty">読み込み中...</p>' : scopeState.todayError ? `<p class="err selector-empty">${escapeHtml(scopeState.todayError)}</p>` : buildMeetingListHtml(scopeState.todayMeetings)}
+            </section>
+            <section class="selector-section">
+              <h4>日付とレース場から選ぶ</h4>
+              <div class="selector-controls">
+                <label>
+                  日付
+                  <br />
+                  <input type="date" value="${escapeHtml(scopeState.selectedDate)}" onchange="window.changeRaceSelectorDate('${scope}', this.value)" />
+                </label>
+                <label>
+                  レース場
+                  <br />
+                  <select onchange="window.changeRaceSelectorVenue('${scope}', this.value)">${buildVenueOptions(scope, scopeState.availableVenues, scopeState.selectedVenue)}</select>
+                </label>
+                <button onclick="window.reloadRaceSelectorDate('${scope}')">一覧更新</button>
+              </div>
+              <p class="muted">${escapeHtml(`${RACE_SELECTOR_SCOPE_LABELS[scope]} / ${selectedDateToken}`)}</p>
+              ${scopeState.browseLoading ? '<p class="muted selector-empty">読み込み中...</p>' : scopeState.browseError ? `<p class="err selector-empty">${escapeHtml(scopeState.browseError)}</p>` : buildMeetingListHtml(filteredMeetings)}
+            </section>
+          </div>`;
+      }
+
+      async function loadTodayRaceSelector(scope, forceRefresh = false) {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState) return;
+        scopeState.todayLoading = true;
+        scopeState.todayError = "";
+        renderRaceSelector();
+        try {
+          const data = await fetchRaceSelectorData(scope, raceSelectorTodayToken, forceRefresh);
+          scopeState.todayMeetings = sortMeetingsByVenue(scope, data?.meetings || []);
+          if ((inputDateToToken(scopeState.selectedDate) || raceSelectorTodayToken) === raceSelectorTodayToken && !scopeState.browseLoading) {
+            scopeState.browseMeetings = [...scopeState.todayMeetings];
+            scopeState.availableVenues = [...(data?.available_venues || [])];
+            if (scopeState.selectedVenue !== "__all__" && !scopeState.availableVenues.includes(scopeState.selectedVenue)) {
+              scopeState.selectedVenue = "__all__";
+            }
+          }
+        } catch (error) {
+          scopeState.todayMeetings = [];
+          scopeState.todayError = error?.message || String(error);
+        } finally {
+          scopeState.todayLoading = false;
+          renderRaceSelector();
+        }
+      }
+
+      async function loadBrowseRaceSelector(scope, dateToken, forceRefresh = false) {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState || !dateToken) return;
+        scopeState.browseLoading = true;
+        scopeState.browseError = "";
+        renderRaceSelector();
+        try {
+          let data;
+          if (!forceRefresh && dateToken === raceSelectorTodayToken && scopeState.todayMeetings.length) {
+            data = {
+              meetings: [...scopeState.todayMeetings],
+              available_venues: [...scopeState.todayMeetings.map((meeting) => meeting?.venue_name).filter(Boolean)],
+            };
+          } else {
+            data = await fetchRaceSelectorData(scope, dateToken, forceRefresh);
+          }
+          scopeState.browseMeetings = sortMeetingsByVenue(scope, data?.meetings || []);
+          scopeState.availableVenues = [...(data?.available_venues || [])];
+          if (scopeState.selectedVenue !== "__all__" && !scopeState.availableVenues.includes(scopeState.selectedVenue)) {
+            scopeState.selectedVenue = "__all__";
+          }
+        } catch (error) {
+          scopeState.browseMeetings = [];
+          scopeState.availableVenues = [];
+          scopeState.browseError = error?.message || String(error);
+        } finally {
+          scopeState.browseLoading = false;
+          renderRaceSelector();
+        }
+      }
+
+      function initializeRaceSelector() {
+        renderRaceSelector();
+        loadTodayRaceSelector("jra");
+        loadTodayRaceSelector("nar");
+        loadBrowseRaceSelector("jra", raceSelectorTodayToken);
+        loadBrowseRaceSelector("nar", raceSelectorTodayToken);
+      }
+
+      window.changeRaceSelectorScope = (scope) => {
+        if (!RACE_SELECTOR_SCOPE_LABELS[scope]) return;
+        raceSelectorState.activeScope = scope;
+        renderRaceSelector();
+      };
+
+      window.changeRaceSelectorDate = (scope, value) => {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState) return;
+        scopeState.selectedDate = String(value || "");
+        const token = inputDateToToken(value);
+        if (!token) {
+          scopeState.browseMeetings = [];
+          scopeState.availableVenues = [];
+          renderRaceSelector();
+          return;
+        }
+        loadBrowseRaceSelector(scope, token);
+      };
+
+      window.changeRaceSelectorVenue = (scope, value) => {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState) return;
+        scopeState.selectedVenue = String(value || "__all__");
+        renderRaceSelector();
+      };
+
+      window.reloadRaceSelectorDate = (scope) => {
+        const scopeState = raceSelectorState[scope];
+        if (!scopeState) return;
+        const token = inputDateToToken(scopeState.selectedDate);
+        if (!token) return;
+        loadBrowseRaceSelector(scope, token, true);
+      };
 
       function getExportSections(data) {
         const comparisons = data?.comparisons || {};
@@ -1813,8 +2123,12 @@
         return date.toLocaleString("ja-JP", { hour12: false });
       }
 
-      async function runAnalyze() {
-        const raceUrl = document.getElementById("raceUrl").value.trim();
+      async function runAnalyze(overrideRaceUrl = "") {
+        const raceUrlInput = document.getElementById("raceUrl");
+        const raceUrl = String(overrideRaceUrl || raceUrlInput?.value || "").trim();
+        if (raceUrlInput && raceUrl) {
+          raceUrlInput.value = raceUrl;
+        }
         const excluded = getExcludedHorses();
         const forceRefresh = document.getElementById("forceRefresh")?.checked || false;
         const cacheKey = normalizeRaceUrlForClientCache(raceUrl);
@@ -1995,7 +2309,18 @@
         }
       }
 
+      window.runAnalyzeForRace = (raceUrl) => {
+        const normalized = String(raceUrl || "").trim();
+        if (!normalized) return;
+        const raceUrlInput = document.getElementById("raceUrl");
+        if (raceUrlInput) {
+          raceUrlInput.value = normalized;
+        }
+        runAnalyze(normalized);
+      };
+
       loadClientScrapedCache();
+      initializeRaceSelector();
       initExcludedPicker();
       window.addEventListener("resize", () => {
         syncAllSplitRowHeights();

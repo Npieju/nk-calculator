@@ -6,7 +6,7 @@ from itertools import permutations
 import json
 import re
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -114,6 +114,23 @@ class NetkeibaScraper:
             "odds_status": odds_status,
         }
 
+    def list_races(self, scope: str, date: str) -> dict[str, Any]:
+        normalized_scope = str(scope).strip().lower()
+        if normalized_scope not in {"jra", "nar"}:
+            raise ValueError("scope は jra または nar を指定してください")
+
+        date_token = self._normalize_kaisai_date(date)
+        sub_url = self._resolve_race_list_sub_url(normalized_scope, date_token)
+        sub_html = self._fetch_html(sub_url)
+        meetings = self._parse_race_list_sub_html(sub_html, normalized_scope)
+        available_venues = list(dict.fromkeys(meeting.get("venue_name") for meeting in meetings if meeting.get("venue_name")))
+        return {
+            "scope": normalized_scope,
+            "date": date_token,
+            "meetings": meetings,
+            "available_venues": available_venues,
+        }
+
     @staticmethod
     def _extract_official_datetime(payload: dict[str, Any] | None) -> str | None:
         if not isinstance(payload, dict):
@@ -126,6 +143,127 @@ class NetkeibaScraper:
             return None
         text = str(value).strip()
         return text or None
+
+    @staticmethod
+    def _normalize_kaisai_date(value: str) -> str:
+        digits = "".join(ch for ch in str(value) if ch.isdigit())
+        if len(digits) != 8:
+            raise ValueError("date は YYYYMMDD または YYYY-MM-DD 形式で指定してください")
+        datetime.strptime(digits, "%Y%m%d")
+        return digits
+
+    @staticmethod
+    def _race_list_base_url(scope: str) -> str:
+        if scope == "nar":
+            return "https://nar.netkeiba.com/top/"
+        return "https://race.netkeiba.com/top/"
+
+    def _resolve_race_list_sub_url(self, scope: str, date_token: str) -> str:
+        base_url = self._race_list_base_url(scope)
+        date_list_url = urljoin(base_url, "race_list_get_date_list.html")
+        response = self.session.get(
+            date_list_url,
+            params={"kaisai_date": date_token, "encoding": "UTF-8"},
+            timeout=self.options.timeout,
+        )
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "lxml")
+
+        href: str | None = None
+        for item in soup.select("#date_list_sub li"):
+            anchor = item.find("a", href=True)
+            if not anchor:
+                continue
+            item_href = str(anchor.get("href") or "").strip()
+            if not item_href:
+                continue
+            if str(item.get("date") or "").strip() == date_token:
+                href = item_href
+                break
+
+        target_href = href or f"race_list_sub.html?kaisai_date={date_token}"
+        return urljoin(base_url, target_href)
+
+    def _parse_race_list_sub_html(self, html: str, scope: str) -> list[dict[str, Any]]:
+        soup = BeautifulSoup(html, "lxml")
+        meetings: list[dict[str, Any]] = []
+
+        for section in soup.select("dl.RaceList_DataList"):
+            title_text = ""
+            title_node = section.select_one(".RaceList_DataTitle")
+            if title_node is not None:
+                title_text = title_node.get_text(" ", strip=True)
+            venue_name = self._extract_venue_name_from_title(title_text)
+
+            races: list[dict[str, Any]] = []
+            for item in section.select("li.RaceList_DataItem"):
+                race_link = item.select_one("a[href*='race_id=']")
+                if race_link is None:
+                    continue
+                href = str(race_link.get("href") or "")
+                race_id = self._extract_race_id(href)
+                if not race_id:
+                    continue
+
+                race_num_text = ""
+                race_num_node = item.select_one(".Race_Num")
+                if race_num_node is not None:
+                    race_num_text = race_num_node.get_text(" ", strip=True)
+                race_no_match = re.search(r"(\d+)R", race_num_text)
+                race_no = int(race_no_match.group(1)) if race_no_match else None
+
+                title = ""
+                title_item = item.select_one(".ItemTitle")
+                if title_item is not None:
+                    title = title_item.get_text(" ", strip=True)
+
+                race_data_text = ""
+                race_data_node = item.select_one(".RaceData")
+                if race_data_node is not None:
+                    race_data_text = race_data_node.get_text(" ", strip=True)
+                span_texts = [span.get_text(" ", strip=True) for span in item.select(".RaceData span") if span.get_text(" ", strip=True)]
+                start_time = span_texts[0] if span_texts else ""
+                distance = span_texts[1] if len(span_texts) >= 2 else ""
+                field_size_match = re.search(r"(\d+)頭", race_data_text)
+                field_size = int(field_size_match.group(1)) if field_size_match else None
+
+                races.append(
+                    {
+                        "race_id": race_id,
+                        "race_no": race_no,
+                        "race_no_text": race_num_text,
+                        "race_title": title,
+                        "start_time": start_time,
+                        "distance": distance,
+                        "field_size": field_size,
+                        "race_url": self._build_shutuba_url(scope, race_id),
+                    }
+                )
+
+            if not races:
+                continue
+            meetings.append(
+                {
+                    "venue_name": venue_name,
+                    "meeting_title": title_text or venue_name,
+                    "races": races,
+                }
+            )
+
+        return meetings
+
+    @staticmethod
+    def _extract_venue_name_from_title(title: str) -> str:
+        text = " ".join(str(title or "").split())
+        match = re.search(r"(?:\d+回\s*)?(.+?)(?:\s*\d+日目|$)", text)
+        if match:
+            return match.group(1).strip()
+        return text.strip()
+
+    @staticmethod
+    def _build_shutuba_url(scope: str, race_id: str) -> str:
+        host = "nar.netkeiba.com" if scope == "nar" else "race.netkeiba.com"
+        return f"https://{host}/race/shutuba.html?race_id={race_id}"
 
     def _build_odds_status(
         self,
