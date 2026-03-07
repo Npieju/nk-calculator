@@ -69,13 +69,14 @@
       .modal-head h3 { margin: 0 0 4px; }
       .allocation-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
       .allocation-toolbar input { width: 140px; min-width: 0; }
-      .allocation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+      .allocation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
       .allocation-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
       .allocation-card h4 { margin: 0 0 8px; font-size: 14px; }
       .allocation-meta { display: grid; gap: 4px; margin-bottom: 8px; font-size: 12px; color: #4b5563; }
       .allocation-warning { margin: 8px 0; font-size: 12px; color: #9a6b00; }
-      .allocation-list { margin: 0; padding-left: 18px; font-size: 12px; }
-      .allocation-list li + li { margin-top: 4px; }
+      .allocation-table { width: max-content; min-width: 100%; margin-top: 0; }
+      .allocation-table th, .allocation-table td { white-space: nowrap; }
+      .allocation-table input { width: 110px; min-width: 0; padding: 6px; }
       .scroll { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
       .sticky-col {
         position: sticky;
@@ -249,12 +250,12 @@
       const CLIENT_CACHE_STORAGE_KEY = "nk_calculator_scraped_cache_v1";
       const CLIENT_CACHE_MAX_ENTRIES = 20;
       const DEFAULT_ALLOCATION_TOTAL = 10000;
-      const ALLOCATION_PREVIEW_LIMIT = 12;
       const allocationModalState = {
         open: false,
         tableKey: "",
         rowIndex: -1,
         totalStake: DEFAULT_ALLOCATION_TOTAL,
+        stakeOverrides: {},
       };
       const RACE_SELECTOR_SCOPE_LABELS = {
         jra: "中央",
@@ -424,6 +425,14 @@
         return Math.max(100, Math.floor(n / 100) * 100);
       }
 
+      function normalizeEditableStake(value) {
+        const text = String(value ?? "").replace(/,/g, "").trim();
+        if (!text) return null;
+        const n = Number(text);
+        if (!Number.isFinite(n) || n < 0) return 0;
+        return Math.floor(n / 100) * 100;
+      }
+
       function setExportButtonsEnabled(enabled) {
         const flag = !!enabled;
         if (exportCsvBtn) exportCsvBtn.disabled = !flag;
@@ -584,7 +593,7 @@
           if (rowHorseNo !== targetHorseNo) continue;
           const odd = parseOddsValue(row?.["オッズ"]);
           if (odd === null || odd <= 0) continue;
-          return [{ label: buildSingleHorseTicketLabel(row, targetHorseNo), odds: odd }];
+          return [{ label: buildSingleHorseTicketLabel(row, targetHorseNo), odds: odd, combo: [targetHorseNo] }];
         }
         return [];
       }
@@ -601,9 +610,28 @@
           const key = dedupeKeyBuilder ? dedupeKeyBuilder(combo, row) : "";
           if (key && seen.has(key)) continue;
           if (key) seen.add(key);
-          bets.push({ label: buildComboTicketLabel(row, combo), odds: odd });
+          bets.push({ label: buildComboTicketLabel(row, combo), odds: odd, combo: [...combo] });
         }
         return bets;
+      }
+
+      function getAllocationHorseNameMap() {
+        const map = {};
+        for (const row of lastAnalyzeData?.entries || []) {
+          const horseNo = normalizeHorseNo(row?.["馬番"] ?? row?.col_2 ?? "");
+          const horseName = String(row?.["馬名"] ?? row?.col_4 ?? "").trim();
+          if (horseNo && horseName && !Object.hasOwn(map, horseNo)) {
+            map[horseNo] = horseName;
+          }
+        }
+        for (const row of lastAnalyzeData?.odds?.["単勝"] || []) {
+          const horseNo = normalizeHorseNo(row?.["馬番"]);
+          const horseName = String(row?.["馬名"] ?? "").trim();
+          if (horseNo && horseName && !Object.hasOwn(map, horseNo)) {
+            map[horseNo] = horseName;
+          }
+        }
+        return map;
       }
 
       function getAllocationBetsForColumn(tableKey, row, columnName) {
@@ -673,12 +701,13 @@
         }
       }
 
-      function buildAllocationPlan(bets, totalStake) {
+      function buildAllocationPlan(bets, totalStake, stakeOverrides = {}) {
         const normalizedTotalStake = normalizeAllocationTotal(totalStake);
         const validBets = (bets || []).filter((bet) => Number.isFinite(Number(bet?.odds)) && Number(bet.odds) > 0);
         if (!validBets.length) {
           return {
             totalStake: normalizedTotalStake,
+            actualTotalStake: 0,
             displayedOdds: null,
             realizedOdds: null,
             minPayout: null,
@@ -711,24 +740,30 @@
 
         const items = validBets.map((bet, index) => {
           const odd = Number(bet.odds);
-          const actualStake = units[index] * 100;
+          const defaultStake = units[index] * 100;
+          const overrideStake = Object.hasOwn(stakeOverrides, index) ? stakeOverrides[index] : null;
+          const actualStake = overrideStake === null || overrideStake === undefined ? defaultStake : Math.max(0, Number(overrideStake) || 0);
           const payout = actualStake * odd;
           return {
             label: String(bet.label || ""),
+            combo: Array.isArray(bet.combo) ? bet.combo : [],
             odds: odd,
             idealStake: idealUnits[index] * 100,
+            defaultStake,
             actualStake,
             payout,
           };
         });
 
+        const actualTotalStake = items.reduce((acc, item) => acc + item.actualStake, 0);
         const payouts = items.map((item) => item.payout);
         const minPayout = payouts.length ? Math.min(...payouts) : null;
         const maxPayout = payouts.length ? Math.max(...payouts) : null;
         return {
           totalStake: normalizedTotalStake,
+          actualTotalStake,
           displayedOdds: syntheticOdds(items.map((item) => item.odds)),
-          realizedOdds: minPayout !== null && normalizedTotalStake > 0 ? minPayout / normalizedTotalStake : null,
+          realizedOdds: minPayout !== null && actualTotalStake > 0 ? minPayout / actualTotalStake : null,
           minPayout,
           maxPayout,
           items,
@@ -761,20 +796,27 @@
         }
 
         const bets = getAllocationBetsForColumn(tableKey, row, columnName);
-        const plan = buildAllocationPlan(bets, totalStake);
-        const previewItems = [...plan.items]
-          .sort((left, right) => {
-            if (right.actualStake !== left.actualStake) return right.actualStake - left.actualStake;
-            if (right.idealStake !== left.idealStake) return right.idealStake - left.idealStake;
-            return left.odds - right.odds;
-          })
-          .slice(0, ALLOCATION_PREVIEW_LIMIT);
-        const listHtml = previewItems.length
-          ? `<ul class="allocation-list">${previewItems.map((item) => `<li><strong>${escapeHtml(item.label)}</strong> / ${escapeHtml(formatOddsText(item.odds))}倍 / 理論 ${escapeHtml(formatYen(item.idealStake))} / 例 ${escapeHtml(formatYen(item.actualStake))} / 払戻 ${escapeHtml(formatYen(item.payout))}</li>`).join("")}</ul>`
-          : '<p class="muted">配分対象の買い目を復元できませんでした。</p>';
-        const hiddenCount = Math.max(0, plan.items.length - previewItems.length);
+        const plan = buildAllocationPlan(bets, totalStake, allocationModalState.stakeOverrides[columnName] || {});
+        const horseNameMap = getAllocationHorseNameMap();
         const warningText = plan.zeroStakeCount > 0
-          ? "買い目数が多いため、100円単位の例では一部が0円配分になります。"
+          ? "0円配分の買い目があります。必要なら購入金額列を調整してください。"
+          : "";
+        const tableRows = plan.items.length
+          ? plan.items.map((item, index) => {
+            const horses = [0, 1, 2].map((position) => {
+              const horseNo = normalizeHorseNo(item.combo?.[position] ?? "");
+              return horseNo ? formatHorseDisplay(horseNo, horseNameMap[horseNo] || "") : "";
+            });
+            return `<tr>
+              <td>${escapeHtml(horses[0])}</td>
+              <td>${escapeHtml(horses[1])}</td>
+              <td>${escapeHtml(horses[2])}</td>
+              <td>${escapeHtml(formatOddsText(item.odds))}</td>
+              <td>${escapeHtml(formatYen(item.idealStake))}</td>
+              <td><input type="number" min="0" step="100" value="${escapeHtml(item.actualStake)}" onchange="window.changeAllocationStake('${escapeHtml(columnName)}', ${index}, this.value)" /></td>
+              <td>${escapeHtml(formatYen(item.payout))}</td>
+            </tr>`;
+          }).join("")
           : "";
 
         return `
@@ -783,12 +825,28 @@
             <div class="allocation-meta">
               <div>表示オッズ: ${escapeHtml(formatOddsText(visibleOdds))}倍</div>
               <div>実現オッズ: ${escapeHtml(formatOddsText(plan.realizedOdds))}倍</div>
+              <div>理論総額: ${escapeHtml(formatYen(plan.totalStake))} / 購入総額: ${escapeHtml(formatYen(plan.actualTotalStake))}</div>
               <div>最小払戻: ${escapeHtml(formatYen(plan.minPayout))} / 最大払戻: ${escapeHtml(formatYen(plan.maxPayout))}</div>
               <div>買い目数: ${escapeHtml(plan.items.length)}件 / 0円配分: ${escapeHtml(plan.zeroStakeCount)}件</div>
             </div>
             ${warningText ? `<p class="allocation-warning">${escapeHtml(warningText)}</p>` : ""}
-            ${listHtml}
-            ${hiddenCount > 0 ? `<p class="muted" style="margin: 8px 0 0;">上位${escapeHtml(ALLOCATION_PREVIEW_LIMIT)}件を表示。残り${escapeHtml(hiddenCount)}件は省略。</p>` : ""}
+            ${plan.items.length ? `
+            <div class="scroll">
+              <table class="allocation-table">
+                <thead>
+                  <tr>
+                    <th>馬A</th>
+                    <th>馬B</th>
+                    <th>馬C</th>
+                    <th>オッズ</th>
+                    <th>理論値</th>
+                    <th>購入金額</th>
+                    <th>払い戻し額</th>
+                  </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </div>` : '<p class="muted">配分対象の買い目を復元できませんでした。</p>'}
           </section>`;
       }
 
@@ -824,7 +882,7 @@
               <div class="allocation-toolbar">
                 <span>総資金</span>
                 <input type="number" min="100" step="100" value="${escapeHtml(totalStake)}" onchange="window.changeAllocationTotal(this.value)" />
-                <span class="muted">100円単位の購入例と実現オッズを表示します。</span>
+                <span class="muted">総資金は理論配分の初期値です。購入金額列は行ごとに編集できます。</span>
               </div>
               <div class="allocation-grid">${cardsHtml || '<p class="muted">表示対象のオッズ列がありません。</p>'}</div>
             </div>
@@ -2452,6 +2510,7 @@
         allocationModalState.tableKey = String(tableKey || "");
         allocationModalState.rowIndex = Number(rowIndex);
         allocationModalState.totalStake = DEFAULT_ALLOCATION_TOTAL;
+        allocationModalState.stakeOverrides = {};
         renderAllocationModal();
       };
 
@@ -2462,6 +2521,26 @@
 
       window.changeAllocationTotal = (value) => {
         allocationModalState.totalStake = normalizeAllocationTotal(value);
+        allocationModalState.stakeOverrides = {};
+        renderAllocationModal();
+      };
+
+      window.changeAllocationStake = (columnName, itemIndex, value) => {
+        const normalized = normalizeEditableStake(value);
+        const columnKey = String(columnName || "");
+        if (!columnKey) return;
+        const nextOverrides = { ...(allocationModalState.stakeOverrides[columnKey] || {}) };
+        if (normalized === null) {
+          delete nextOverrides[itemIndex];
+        } else {
+          nextOverrides[itemIndex] = normalized;
+        }
+        allocationModalState.stakeOverrides = { ...allocationModalState.stakeOverrides };
+        if (Object.keys(nextOverrides).length) {
+          allocationModalState.stakeOverrides[columnKey] = nextOverrides;
+        } else {
+          delete allocationModalState.stakeOverrides[columnKey];
+        }
         renderAllocationModal();
       };
 
