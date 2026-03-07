@@ -18,7 +18,7 @@ if str(CORE_DIR) not in sys.path:
 
 from nk_core import analyze_race, list_races
 
-app = FastAPI(title="nk-calculator-api", version="0.1.0")
+app = FastAPI(title="nk-odds-compare-api", version="0.1.0")
 
 allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
 allowed_origins: list[str] = []

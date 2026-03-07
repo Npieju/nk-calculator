@@ -1,4 +1,4 @@
-# nk-calculator
+# nk-odds-compare
 
 netkeiba のレースを選ぶと、オッズ取得から比較表示までを行うWebアプリです。URL入力は副機能として残しています。
 
