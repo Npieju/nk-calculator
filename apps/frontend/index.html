@@ -587,39 +587,31 @@
         white-space: pre-line;
         overflow-wrap: anywhere;
         line-height: 1.24;
+        min-width: 0;
+        width: 1%;
       }
 
       td.col-clip {
-        overflow-wrap: anywhere;
+        white-space: nowrap;
+        word-break: keep-all;
       }
 
-      th.col-num { min-width: 7.1em; }
       td.col-num {
-        min-width: 5.8em;
+        min-width: 4.8em;
         white-space: nowrap;
       }
 
-      th.col-horse-no, td.col-horse-no {
-        min-width: 4.5em;
+      td.col-horse-no {
+        min-width: 2.8em;
         white-space: nowrap;
       }
 
-      th.col-text { min-width: 7.2em; }
       td.col-text {
-        min-width: 7.2em;
-        max-width: 10em;
-        white-space: normal;
-        line-height: 1.35;
-      }
-
-      th.col-horse-display, td.col-horse-display {
-        min-width: 9em;
-        max-width: 11em;
+        min-width: 4.8em;
       }
 
       td.col-horse-display {
-        white-space: normal;
-        line-height: 1.35;
+        min-width: 10em;
       }
 
       @media (max-width: 1180px) {
@@ -631,17 +623,10 @@
 
       @media (max-width: 900px) {
         th, td { padding: 7px 8px; font-size: 12.5px; }
-        th.col-num { min-width: 6.3em; }
-        td.col-num { min-width: 5.2em; }
-        th.col-horse-no, td.col-horse-no { min-width: 4em; }
-        th.col-text, td.col-text {
-          min-width: 6.6em;
-          max-width: 8.8em;
-        }
-        th.col-horse-display, td.col-horse-display {
-          min-width: 7.8em;
-          max-width: 9.4em;
-        }
+        td.col-num { min-width: 4.4em; }
+        td.col-horse-no { min-width: 2.6em; }
+        td.col-text { min-width: 4.4em; }
+        td.col-horse-display { min-width: 9.4em; }
       }
 
       @media (max-width: 640px) {
@@ -651,17 +636,10 @@
         .card-head h3, #meta h3, #status h3 { font-size: 16px; }
         th, td { font-size: 12px; padding: 6px 7px; }
         thead th { line-height: 1.18; }
-        th.col-num { min-width: 5.7em; }
-        td.col-num { min-width: 4.8em; }
-        th.col-horse-no, td.col-horse-no { min-width: 3.7em; }
-        th.col-text, td.col-text {
-          min-width: 5.9em;
-          max-width: 7.8em;
-        }
-        th.col-horse-display, td.col-horse-display {
-          min-width: 7em;
-          max-width: 8.4em;
-        }
+        td.col-num { min-width: 4.1em; }
+        td.col-horse-no { min-width: 2.4em; }
+        td.col-text { min-width: 4.1em; }
+        td.col-horse-display { min-width: 9.2em; }
         .excluded-picker { grid-template-columns: repeat(6, minmax(0, 1fr)); }
         .selector-race-button { min-width: 148px; max-width: none; width: 100%; }
         .selector-controls input, .selector-controls select { min-width: 0; width: 100%; }
