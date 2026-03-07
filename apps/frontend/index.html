@@ -433,6 +433,10 @@
         return Math.floor(n / 100) * 100;
       }
 
+      function formatHorseNoOnly(horseNo) {
+        return String(horseNo ?? "").trim();
+      }
+
       function setExportButtonsEnabled(enabled) {
         const flag = !!enabled;
         if (exportCsvBtn) exportCsvBtn.disabled = !flag;
@@ -615,25 +619,6 @@
         return bets;
       }
 
-      function getAllocationHorseNameMap() {
-        const map = {};
-        for (const row of lastAnalyzeData?.entries || []) {
-          const horseNo = normalizeHorseNo(row?.["馬番"] ?? row?.col_2 ?? "");
-          const horseName = String(row?.["馬名"] ?? row?.col_4 ?? "").trim();
-          if (horseNo && horseName && !Object.hasOwn(map, horseNo)) {
-            map[horseNo] = horseName;
-          }
-        }
-        for (const row of lastAnalyzeData?.odds?.["単勝"] || []) {
-          const horseNo = normalizeHorseNo(row?.["馬番"]);
-          const horseName = String(row?.["馬名"] ?? "").trim();
-          if (horseNo && horseName && !Object.hasOwn(map, horseNo)) {
-            map[horseNo] = horseName;
-          }
-        }
-        return map;
-      }
-
       function getAllocationBetsForColumn(tableKey, row, columnName) {
         const odds = lastAnalyzeData?.odds || {};
         const excludedSet = new Set((lastAnalyzeData?.excluded_horses || []).map((item) => normalizeHorseNo(item)).filter(Boolean));
@@ -774,12 +759,12 @@
 
       function buildRowSummaryText(row) {
         if (row?.horse_no !== undefined || row?.horse_name !== undefined) {
-          return formatHorseDisplay(row?.horse_no, row?.horse_name);
+          return formatHorseNoOnly(row?.horse_no);
         }
         const horses = [
-          formatHorseDisplay(row?.horse_no_a, row?.horse_name_a),
-          formatHorseDisplay(row?.horse_no_b, row?.horse_name_b),
-          formatHorseDisplay(row?.horse_no_c, row?.horse_name_c),
+          formatHorseNoOnly(row?.horse_no_a),
+          formatHorseNoOnly(row?.horse_no_b),
+          formatHorseNoOnly(row?.horse_no_c),
         ].filter(Boolean);
         return horses.join(" / ");
       }
@@ -797,20 +782,19 @@
 
         const bets = getAllocationBetsForColumn(tableKey, row, columnName);
         const plan = buildAllocationPlan(bets, totalStake, allocationModalState.stakeOverrides[columnName] || {});
-        const horseNameMap = getAllocationHorseNameMap();
         const warningText = plan.zeroStakeCount > 0
           ? "0円配分の買い目があります。必要なら購入金額列を調整してください。"
           : "";
+        const hasHorseB = plan.items.some((item) => normalizeHorseNo(item.combo?.[1] ?? ""));
+        const hasHorseC = plan.items.some((item) => normalizeHorseNo(item.combo?.[2] ?? ""));
         const tableRows = plan.items.length
           ? plan.items.map((item, index) => {
-            const horses = [0, 1, 2].map((position) => {
-              const horseNo = normalizeHorseNo(item.combo?.[position] ?? "");
-              return horseNo ? formatHorseDisplay(horseNo, horseNameMap[horseNo] || "") : "";
-            });
+            const horses = [0, 1, 2].map((position) => formatHorseNoOnly(normalizeHorseNo(item.combo?.[position] ?? "")));
+            const horseCells = [`<td>${escapeHtml(horses[0])}</td>`];
+            if (hasHorseB) horseCells.push(`<td>${escapeHtml(horses[1])}</td>`);
+            if (hasHorseC) horseCells.push(`<td>${escapeHtml(horses[2])}</td>`);
             return `<tr>
-              <td>${escapeHtml(horses[0])}</td>
-              <td>${escapeHtml(horses[1])}</td>
-              <td>${escapeHtml(horses[2])}</td>
+              ${horseCells.join("")}
               <td>${escapeHtml(formatOddsText(item.odds))}</td>
               <td>${escapeHtml(formatYen(item.idealStake))}</td>
               <td><input type="number" min="0" step="100" value="${escapeHtml(item.actualStake)}" onchange="window.changeAllocationStake('${escapeHtml(columnName)}', ${index}, this.value)" /></td>
@@ -836,8 +820,8 @@
                 <thead>
                   <tr>
                     <th>馬A</th>
-                    <th>馬B</th>
-                    <th>馬C</th>
+                    ${hasHorseB ? "<th>馬B</th>" : ""}
+                    ${hasHorseC ? "<th>馬C</th>" : ""}
                     <th>オッズ</th>
                     <th>理論値</th>
                     <th>購入金額</th>
