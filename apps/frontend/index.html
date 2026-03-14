@@ -3199,46 +3199,64 @@
         return horseNos.map((horseNo) => formatHorseNoOnly(horseNo)).join("-");
       }
 
-      function buildHorseLabelFromRow(row, horseNo) {
-        const normalizedHorseNo = normalizeHorseNo(horseNo);
-        if (!normalizedHorseNo) return "";
-        const candidates = [
-          [normalizeHorseNo(row?.horse_no), row?.horse_name],
-          [normalizeHorseNo(row?.horse_no_a), row?.horse_name_a],
-          [normalizeHorseNo(row?.horse_no_b), row?.horse_name_b],
-          [normalizeHorseNo(row?.horse_no_c), row?.horse_name_c],
-        ];
-        for (const [candidateHorseNo, candidateHorseName] of candidates) {
-          if (candidateHorseNo === normalizedHorseNo) {
-            return formatHorseDisplay(candidateHorseNo, candidateHorseName);
-          }
-        }
-        return formatHorseNoOnly(normalizedHorseNo);
+      function isHarvilleTripleMarket(marketKey) {
+        return ["trio", "trifecta"].includes(String(marketKey || ""));
       }
 
-      function buildHarvilleHorseFilterOptions(rows, selectedHorseNo) {
+      function collectHarvilleHorseChoices(rows) {
         const horseMap = new Map();
         for (const row of rows || []) {
-          for (const horseNo of getRowHorseNoList(row)) {
-            if (!horseMap.has(horseNo)) {
-              horseMap.set(horseNo, buildHorseLabelFromRow(row, horseNo));
-            }
+          const entries = [
+            [normalizeHorseNo(row?.horse_no_a), row?.horse_name_a],
+            [normalizeHorseNo(row?.horse_no_b), row?.horse_name_b],
+            [normalizeHorseNo(row?.horse_no_c), row?.horse_name_c],
+          ];
+          for (const [horseNo, horseName] of entries) {
+            const normalizedName = normalizeHorseName(horseName);
+            if (!horseNo || !normalizedName || horseMap.has(normalizedName)) continue;
+            horseMap.set(normalizedName, {
+              horseNo,
+              label: formatHorseDisplay(horseNo, horseName),
+            });
           }
         }
-        const options = [`<option value="__all__" ${selectedHorseNo === "__all__" ? "selected" : ""}>全表示</option>`];
-        const sortedHorseNos = [...horseMap.keys()].sort(horsePairSort);
-        for (const horseNo of sortedHorseNos) {
-          options.push(`<option value="${escapeHtml(horseNo)}" ${selectedHorseNo === horseNo ? "selected" : ""}>${escapeHtml(horseMap.get(horseNo) || formatHorseNoOnly(horseNo))}</option>`);
-        }
-        return options.join("");
+        return [...horseMap.entries()]
+          .map(([name, info]) => ({ name, horseNo: info.horseNo, label: info.label }))
+          .sort((left, right) => {
+            const byHorseNo = horsePairSort(left.horseNo, right.horseNo);
+            if (byHorseNo !== 0) return byHorseNo;
+            return left.name.localeCompare(right.name, "ja");
+          });
       }
 
-      function filterHarvilleRowsByHorse(rows, selectedHorseNo) {
-        const normalizedHorseNo = normalizeHorseNo(selectedHorseNo);
-        if (!normalizedHorseNo || normalizedHorseNo === "__all__") {
-          return rows;
-        }
-        return (rows || []).filter((row) => getRowHorseNoList(row).includes(normalizedHorseNo));
+      function buildHarvilleHorseFilterOptions(rows, selectedHorseName, excludedHorseName = "") {
+        const excluded = normalizeHorseName(excludedHorseName);
+        const selected = normalizeHorseName(selectedHorseName) || "__all__";
+        const choices = collectHarvilleHorseChoices(rows)
+          .filter((choice) => !excluded || choice.name !== excluded);
+        return [`<option value="__all__" ${selected === "__all__" ? "selected" : ""}>全表示</option>`]
+          .concat(choices.map((choice) => `<option value="${escapeHtml(choice.name)}" ${selected === choice.name ? "selected" : ""}>${escapeHtml(choice.label)}</option>`))
+          .join("");
+      }
+
+      function filterHarvilleRowsByHorse(rows, primaryHorseName, secondHorseName = "__all__") {
+        const primary = normalizeHorseName(primaryHorseName);
+        const secondary = normalizeHorseName(secondHorseName);
+        return (rows || []).filter((row) => {
+          const names = [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c]
+            .map((value) => normalizeHorseName(value))
+            .filter(Boolean);
+          if (primary && primary !== "__all__" && !names.includes(primary)) return false;
+          if (secondary && secondary !== "__all__" && !names.includes(secondary)) return false;
+          return true;
+        });
+      }
+
+      function buildHarvilleMarketTabsHtml(availableMarkets, marketKey) {
+        const tabsHtml = (availableMarkets || [])
+          .map((option) => `<button class="selector-tab ${marketKey === option.key ? "is-active" : ""}" type="button" onclick="window.changeHarvilleMarket('${option.key}')">${escapeHtml(option.label)}</button>`)
+          .join("");
+        return `<div class="selector-tabs selector-subtabs">${tabsHtml}</div>`;
       }
 
       function formatEdgePercent(value) {
@@ -3602,6 +3620,7 @@
       function buildTableCard(state) {
         let title = state.title;
         let rows = state.rows;
+        let preToolbarHtml = "";
         let extraToolbarHtml = "";
         const extendedToggleControl = buildExtendedToggleControl(state.key);
         const collapseButton = buildCollapseButtonHtml(`window.toggleTableCollapse('${escapeHtml(state.key)}')`, state.collapsed);
@@ -3614,23 +3633,32 @@
           const marketKey = availableMarkets.some((option) => option.key === state.marketKey) ? state.marketKey : fallbackMarket;
           state.marketKey = marketKey;
           const marketRows = rowsByMarket[marketKey] || [];
-          const horseFilter = normalizeHorseNo(state.horseFilter) || "__all__";
-          state.horseFilter = horseFilter;
-          rows = filterHarvilleRowsByHorse(marketRows, horseFilter);
+          const availableHorseNames = collectHarvilleHorseChoices(marketRows).map((choice) => choice.name);
+          const horseFilter = normalizeHorseName(state.horseFilter) || "__all__";
+          const normalizedHorseFilter = horseFilter !== "__all__" && availableHorseNames.includes(horseFilter) ? horseFilter : "__all__";
+          const secondHorseFilter = normalizeHorseName(state.secondHorseFilter) || "__all__";
+          const validSecondHorseNames = availableHorseNames.filter((name) => name !== normalizedHorseFilter);
+          const normalizedSecondHorseFilter = isHarvilleTripleMarket(marketKey) && secondHorseFilter !== "__all__" && validSecondHorseNames.includes(secondHorseFilter)
+            ? secondHorseFilter
+            : "__all__";
+          state.horseFilter = normalizedHorseFilter;
+          state.secondHorseFilter = normalizedSecondHorseFilter;
+          rows = filterHarvilleRowsByHorse(marketRows, normalizedHorseFilter, normalizedSecondHorseFilter);
           title = `Harville比較: ${HARVILLE_MARKET_LABELS[marketKey] || marketKey} / 単勝基準`;
-          const marketOptions = availableMarkets
-            .map((option) => `<option value="${escapeHtml(option.key)}" ${marketKey === option.key ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
-            .join("");
-          const horseOptions = buildHarvilleHorseFilterOptions(marketRows, horseFilter);
+          preToolbarHtml = buildHarvilleMarketTabsHtml(availableMarkets, marketKey);
+          const horseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedHorseFilter);
+          const secondHorseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedSecondHorseFilter, normalizedHorseFilter);
           extraToolbarHtml = [
-            buildToolbarFieldHtml("券種", `<select onchange="window.changeHarvilleMarket(this.value)">${marketOptions}</select>`),
-            buildToolbarFieldHtml("馬", `<select onchange="window.changeHarvilleHorseFilter(this.value)">${horseOptions}</select>`),
+            buildToolbarFieldHtml("馬A", `<select onchange="window.changeHarvilleHorseFilter(this.value)">${horseOptions}</select>`),
+            isHarvilleTripleMarket(marketKey)
+              ? buildToolbarFieldHtml("馬B", `<select onchange="window.changeHarvilleSecondHorseFilter(this.value)">${secondHorseOptions}</select>`)
+              : "",
           ].join("");
         }
 
         tableViewStates[state.key] = { rows: [], displayColumns: [], title };
         if (!Array.isArray(rows) || rows.length === 0) {
-          return `<div class="card"><div class="card-head"><h3>${escapeHtml(title)}</h3><div class="card-actions">${extendedToggleControl}${collapseButton}</div></div>${state.collapsed ? "" : '<p class="muted">データなし</p>'}</div>`;
+          return `<div class="card table-card"><div class="card-head"><h3>${escapeHtml(title)}</h3><div class="card-actions">${extendedToggleControl}${collapseButton}</div></div>${state.collapsed ? "" : `${preToolbarHtml}${extraToolbarHtml ? `<div class="toolbar">${extraToolbarHtml}</div>` : ""}<p class="muted">データなし</p>`}</div>`;
         }
 
         const baseColumns = Object.keys(rows[0]);
@@ -3704,6 +3732,7 @@
                   <div class="card-actions">${extendedToggleControl}${collapseButton}</div>
                 </div>
                 ${state.collapsed ? "" : `
+                ${preToolbarHtml}
                 <div class="toolbar">
                   ${buildToolbarFieldHtml("ソート", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
                   ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
@@ -3733,6 +3762,7 @@
                 <div class="card-actions">${extendedToggleControl}${collapseButton}</div>
               </div>
               ${state.collapsed ? "" : `
+              ${preToolbarHtml}
               <div class="toolbar">
                 ${buildToolbarFieldHtml("ソート", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
                 ${buildToolbarFieldHtml("順", buildSortOrderButtonHtml(state.key, state.sortOrder))}
@@ -3802,6 +3832,7 @@
               <div class="card-actions">${extendedToggleControl}${collapseButton}</div>
             </div>
             ${state.collapsed ? "" : `
+            ${preToolbarHtml}
             <div class="toolbar">
               ${extraToolbarHtml}
               ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
@@ -3983,12 +4014,25 @@
         if (!tableStates.harville) return;
         if (!Object.hasOwn(tableStates.harville.rowsByMarket || {}, nextKey)) return;
         tableStates.harville.marketKey = nextKey;
+        if (!isHarvilleTripleMarket(nextKey)) {
+          tableStates.harville.secondHorseFilter = "__all__";
+        }
         renderTables();
       };
 
       window.changeHarvilleHorseFilter = (value) => {
         if (!tableStates.harville) return;
-        tableStates.harville.horseFilter = normalizeHorseNo(value) || "__all__";
+        tableStates.harville.horseFilter = normalizeHorseName(value) || "__all__";
+        if (tableStates.harville.horseFilter === tableStates.harville.secondHorseFilter) {
+          tableStates.harville.secondHorseFilter = "__all__";
+        }
+        renderTables();
+      };
+
+      window.changeHarvilleSecondHorseFilter = (value) => {
+        if (!tableStates.harville) return;
+        const nextValue = normalizeHorseName(value) || "__all__";
+        tableStates.harville.secondHorseFilter = nextValue === tableStates.harville.horseFilter ? "__all__" : nextValue;
         renderTables();
       };
 
@@ -4264,6 +4308,8 @@
             filterValue: "__all__",
           };
           const previousHarvilleMarket = tableStates.harville?.marketKey || HARVILLE_MARKET_OPTIONS[0].key;
+          const previousHarvilleHorseFilter = tableStates.harville?.horseFilter || "__all__";
+          const previousHarvilleSecondHorseFilter = tableStates.harville?.secondHorseFilter || "__all__";
           tableStates.harville = {
             key: "harville",
             title: "Harville比較",
@@ -4276,7 +4322,8 @@
             collapsed: false,
             filterColumn: "",
             filterValue: "__all__",
-            horseFilter: "__all__",
+            horseFilter: previousHarvilleHorseFilter,
+            secondHorseFilter: previousHarvilleSecondHorseFilter,
             rowClickable: false,
           };
           tableStates.c1 = {
