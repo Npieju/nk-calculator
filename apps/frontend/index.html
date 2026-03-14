@@ -1204,6 +1204,7 @@
       const SCREENER_ROW_LIMIT = 40;
       const tableStates = {};
       let statusCollapsed = true;
+      let screenerCollapsed = true;
       let selectedHorseFilter = "__all__";
       let globalFilterNames = [];
       let showExtendedPatterns = false;
@@ -3615,6 +3616,7 @@
       function buildScreenerCard() {
         const syntheticRows = buildSyntheticScreenerRows();
         const harvilleRows = buildHarvilleScreenerRows();
+        const collapseButton = buildCollapseButtonHtml("window.toggleScreenerCollapse()", screenerCollapsed);
         if (!["synthetic", "harville"].includes(activeScreenerTab)) {
           activeScreenerTab = "synthetic";
         }
@@ -3625,8 +3627,8 @@
           { key: "harville", label: `Harvilleの差異上位 (${harvilleRows.length})` },
         ].map((tab) => `<button class="selector-tab ${activeScreenerTab === tab.key ? "is-active" : ""}" type="button" onclick="window.changeScreenerTab('${tab.key}')">${escapeHtml(tab.label)}</button>`).join("");
         const note = isHarville
-          ? `探索用の補助一覧です。実オッズが Harville 理論値を上回った行だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の Harville 詳細へ移動します。`
-          : `探索用の補助一覧です。基準列より高い派生列だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の系統別詳細へ移動します。`;
+          ? `実オッズが Harville 理論値を上回った行を上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の Harville 詳細へ移動します。`
+          : `基準列より高い派生列を上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の系統別詳細へ移動します。`;
 
         if (!activeRows.length) {
           return `
@@ -3636,10 +3638,9 @@
                   <p class="section-eyebrow">探索用</p>
                   <h3>差異上位一覧</h3>
                 </div>
-                <p class="card-note">予想と無関係な馬も含むため、補助的な差異ランキングとして扱います。</p>
+                <div class="card-actions">${collapseButton}</div>
               </div>
-              <div class="selector-tabs">${tabsHtml}</div>
-              <p class="screener-empty">${escapeHtml(note)} 候補行はありません。</p>
+              ${screenerCollapsed ? "" : `<div class="selector-tabs">${tabsHtml}</div><p class="screener-note">${escapeHtml(note)}</p><p class="screener-empty">候補行はありません。</p>`}
             </section>`;
         }
 
@@ -3676,8 +3677,9 @@
                 <p class="section-eyebrow">探索用</p>
                 <h3>差異上位一覧</h3>
               </div>
-              <p class="card-note">予想と無関係な馬も含むため、補助的な差異ランキングとして扱います。</p>
+              <div class="card-actions">${collapseButton}</div>
             </div>
+            ${screenerCollapsed ? "" : `
             <div class="selector-tabs">${tabsHtml}</div>
             <p class="screener-note">${escapeHtml(note)}</p>
             <div class="scroll">
@@ -3686,6 +3688,7 @@
                 <tbody>${tbody}</tbody>
               </table>
             </div>
+            `}
           </section>`;
       }
 
@@ -4301,6 +4304,11 @@
 
       window.changeScreenerTab = (key) => {
         activeScreenerTab = key === "harville" ? "harville" : "synthetic";
+        renderTables();
+      };
+
+      window.toggleScreenerCollapse = () => {
+        screenerCollapsed = !screenerCollapsed;
         renderTables();
       };
 
