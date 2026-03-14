@@ -3199,6 +3199,48 @@
         return horseNos.map((horseNo) => formatHorseNoOnly(horseNo)).join("-");
       }
 
+      function buildHorseLabelFromRow(row, horseNo) {
+        const normalizedHorseNo = normalizeHorseNo(horseNo);
+        if (!normalizedHorseNo) return "";
+        const candidates = [
+          [normalizeHorseNo(row?.horse_no), row?.horse_name],
+          [normalizeHorseNo(row?.horse_no_a), row?.horse_name_a],
+          [normalizeHorseNo(row?.horse_no_b), row?.horse_name_b],
+          [normalizeHorseNo(row?.horse_no_c), row?.horse_name_c],
+        ];
+        for (const [candidateHorseNo, candidateHorseName] of candidates) {
+          if (candidateHorseNo === normalizedHorseNo) {
+            return formatHorseDisplay(candidateHorseNo, candidateHorseName);
+          }
+        }
+        return formatHorseNoOnly(normalizedHorseNo);
+      }
+
+      function buildHarvilleHorseFilterOptions(rows, selectedHorseNo) {
+        const horseMap = new Map();
+        for (const row of rows || []) {
+          for (const horseNo of getRowHorseNoList(row)) {
+            if (!horseMap.has(horseNo)) {
+              horseMap.set(horseNo, buildHorseLabelFromRow(row, horseNo));
+            }
+          }
+        }
+        const options = [`<option value="__all__" ${selectedHorseNo === "__all__" ? "selected" : ""}>全表示</option>`];
+        const sortedHorseNos = [...horseMap.keys()].sort(horsePairSort);
+        for (const horseNo of sortedHorseNos) {
+          options.push(`<option value="${escapeHtml(horseNo)}" ${selectedHorseNo === horseNo ? "selected" : ""}>${escapeHtml(horseMap.get(horseNo) || formatHorseNoOnly(horseNo))}</option>`);
+        }
+        return options.join("");
+      }
+
+      function filterHarvilleRowsByHorse(rows, selectedHorseNo) {
+        const normalizedHorseNo = normalizeHorseNo(selectedHorseNo);
+        if (!normalizedHorseNo || normalizedHorseNo === "__all__") {
+          return rows;
+        }
+        return (rows || []).filter((row) => getRowHorseNoList(row).includes(normalizedHorseNo));
+      }
+
       function formatEdgePercent(value) {
         const n = toNumber(value);
         if (n === null) return "-";
@@ -3277,22 +3319,22 @@
         const isHarville = activeScreenerTab === "harville";
         const activeRows = (isHarville ? harvilleRows : syntheticRows).slice(0, SCREENER_ROW_LIMIT);
         const tabsHtml = [
-          { key: "synthetic", label: `合成候補 (${syntheticRows.length})` },
-          { key: "harville", label: `Harville候補 (${harvilleRows.length})` },
+          { key: "synthetic", label: `合成の差異上位 (${syntheticRows.length})` },
+          { key: "harville", label: `Harvilleの差異上位 (${harvilleRows.length})` },
         ].map((tab) => `<button class="selector-tab ${activeScreenerTab === tab.key ? "is-active" : ""}" type="button" onclick="window.changeScreenerTab('${tab.key}')">${escapeHtml(tab.label)}</button>`).join("");
         const note = isHarville
-          ? `実オッズが Harville 理論値を上回った行だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の Harville 詳細へ移動します。`
-          : `基準列より高い派生列だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の系統別詳細へ移動します。`;
+          ? `探索用の補助一覧です。実オッズが Harville 理論値を上回った行だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の Harville 詳細へ移動します。`
+          : `探索用の補助一覧です。基準列より高い派生列だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の系統別詳細へ移動します。`;
 
         if (!activeRows.length) {
           return `
             <section class="card table-card" id="screenerCard">
               <div class="card-head">
                 <div>
-                  <p class="section-eyebrow">候補抽出</p>
-                  <h3>買い候補一覧</h3>
+                  <p class="section-eyebrow">探索用</p>
+                  <h3>差異上位一覧</h3>
                 </div>
-                <p class="card-note">まず上で候補を拾い、その後に下で内訳を確認します。</p>
+                <p class="card-note">予想と無関係な馬も含むため、補助的な差異ランキングとして扱います。</p>
               </div>
               <div class="selector-tabs">${tabsHtml}</div>
               <p class="screener-empty">${escapeHtml(note)} 候補行はありません。</p>
@@ -3329,10 +3371,10 @@
           <section class="card table-card" id="screenerCard">
             <div class="card-head">
               <div>
-                <p class="section-eyebrow">候補抽出</p>
-                <h3>買い候補一覧</h3>
+                <p class="section-eyebrow">探索用</p>
+                <h3>差異上位一覧</h3>
               </div>
-              <p class="card-note">まず上で候補を拾い、その後に下で内訳を確認します。</p>
+              <p class="card-note">予想と無関係な馬も含むため、補助的な差異ランキングとして扱います。</p>
             </div>
             <div class="selector-tabs">${tabsHtml}</div>
             <p class="screener-note">${escapeHtml(note)}</p>
@@ -3571,12 +3613,19 @@
           const fallbackMarket = availableMarkets[0]?.key || HARVILLE_MARKET_OPTIONS[0].key;
           const marketKey = availableMarkets.some((option) => option.key === state.marketKey) ? state.marketKey : fallbackMarket;
           state.marketKey = marketKey;
-          rows = rowsByMarket[marketKey] || [];
+          const marketRows = rowsByMarket[marketKey] || [];
+          const horseFilter = normalizeHorseNo(state.horseFilter) || "__all__";
+          state.horseFilter = horseFilter;
+          rows = filterHarvilleRowsByHorse(marketRows, horseFilter);
           title = `Harville比較: ${HARVILLE_MARKET_LABELS[marketKey] || marketKey} / 単勝基準`;
           const marketOptions = availableMarkets
             .map((option) => `<option value="${escapeHtml(option.key)}" ${marketKey === option.key ? "selected" : ""}>${escapeHtml(option.label)}</option>`)
             .join("");
-          extraToolbarHtml = buildToolbarFieldHtml("券種", `<select onchange="window.changeHarvilleMarket(this.value)">${marketOptions}</select>`);
+          const horseOptions = buildHarvilleHorseFilterOptions(marketRows, horseFilter);
+          extraToolbarHtml = [
+            buildToolbarFieldHtml("券種", `<select onchange="window.changeHarvilleMarket(this.value)">${marketOptions}</select>`),
+            buildToolbarFieldHtml("馬", `<select onchange="window.changeHarvilleHorseFilter(this.value)">${horseOptions}</select>`),
+          ].join("");
         }
 
         tableViewStates[state.key] = { rows: [], displayColumns: [], title };
@@ -3778,12 +3827,12 @@
         }
         const htmlParts = [];
         if (Object.keys(tableStates).length) {
-          htmlParts.push(buildScreenerCard());
           htmlParts.push(buildDetailTabsCard());
           const activeState = tableStates[activeDetailTab] || tableStates[tableOrder[0]];
           if (activeState) {
             htmlParts.push(buildTableCard(activeState));
           }
+          htmlParts.push(buildScreenerCard());
         }
         tablesBox.innerHTML = htmlParts.join("");
         syncAllSplitRowHeights();
@@ -3934,6 +3983,12 @@
         if (!tableStates.harville) return;
         if (!Object.hasOwn(tableStates.harville.rowsByMarket || {}, nextKey)) return;
         tableStates.harville.marketKey = nextKey;
+        renderTables();
+      };
+
+      window.changeHarvilleHorseFilter = (value) => {
+        if (!tableStates.harville) return;
+        tableStates.harville.horseFilter = normalizeHorseNo(value) || "__all__";
         renderTables();
       };
 
@@ -4221,6 +4276,7 @@
             collapsed: false,
             filterColumn: "",
             filterValue: "__all__",
+            horseFilter: "__all__",
             rowClickable: false,
           };
           tableStates.c1 = {
