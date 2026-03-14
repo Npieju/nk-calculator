@@ -3279,6 +3279,21 @@
         });
       }
 
+      function buildHarvilleSlotPatch(row, targetSuffix, sourceSuffix) {
+        return {
+          [`horse_no_${targetSuffix}`]: row?.[`horse_no_${sourceSuffix}`] ?? null,
+          [`horse_name_${targetSuffix}`]: row?.[`horse_name_${sourceSuffix}`] ?? null,
+          [`win_odds_${targetSuffix}`]: row?.[`win_odds_${sourceSuffix}`] ?? null,
+        };
+      }
+
+      function removeHarvilleSlotColumns(columns, suffixes) {
+        const hidden = new Set(
+          (suffixes || []).flatMap((suffix) => [`horse_no_${suffix}`, `horse_name_${suffix}`, `win_odds_${suffix}`])
+        );
+        return (columns || []).filter((columnName) => !hidden.has(columnName));
+      }
+
       function applyHarvilleFocusedDisplayIfNeeded(state, rows, columns) {
         const marketKey = String(state.marketKey || "");
         const selectedA = normalizeHorseName(state.horseFilter);
@@ -3295,7 +3310,7 @@
             ? rows.filter((row) => normalizeHorseName(row?.horse_name_a) === selectedA)
             : rows;
           const displayColumns = hasSelectedA
-            ? columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a")
+            ? removeHarvilleSlotColumns(columns, ["a"])
             : columns;
           return { displayRows: filteredRows, displayColumns };
         }
@@ -3310,10 +3325,10 @@
           }
           let displayColumns = [...columns];
           if (hasSelectedA) {
-            displayColumns = displayColumns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a");
+            displayColumns = removeHarvilleSlotColumns(displayColumns, ["a"]);
           }
           if (hasSelectedB) {
-            displayColumns = displayColumns.filter((columnName) => columnName !== "horse_no_b" && columnName !== "horse_name_b");
+            displayColumns = removeHarvilleSlotColumns(displayColumns, ["b"]);
           }
           return { displayRows: filteredRows, displayColumns };
         }
@@ -3331,13 +3346,12 @@
             if (nameB === selectedA) {
               return {
                 ...row,
-                horse_no_b: row?.horse_no_a,
-                horse_name_b: row?.horse_name_a,
+                ...buildHarvilleSlotPatch(row, "b", "a"),
               };
             }
             return { ...row };
           });
-          const displayColumns = columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a");
+          const displayColumns = removeHarvilleSlotColumns(columns, ["a"]);
           return { displayRows: mappedRows, displayColumns };
         }
 
@@ -3372,10 +3386,15 @@
                   return null;
                 }
 
+                const thirdSourceSuffix = normalizeHorseName(row?.horse_name_a) === third.normalized
+                  ? "a"
+                  : normalizeHorseName(row?.horse_name_b) === third.normalized
+                  ? "b"
+                  : "c";
+
                 return {
                   ...row,
-                  horse_no_c: third.no,
-                  horse_name_c: third.name,
+                  ...buildHarvilleSlotPatch(row, "c", thirdSourceSuffix),
                 };
               }
 
@@ -3386,19 +3405,30 @@
               const first = others[0];
               const second = others[1] || { no: null, name: null };
 
+              const firstSourceSuffix = normalizeHorseName(row?.horse_name_a) === first.normalized
+                ? "a"
+                : normalizeHorseName(row?.horse_name_b) === first.normalized
+                ? "b"
+                : "c";
+              const secondSourceSuffix = second.normalized
+                ? normalizeHorseName(row?.horse_name_a) === second.normalized
+                  ? "a"
+                  : normalizeHorseName(row?.horse_name_b) === second.normalized
+                  ? "b"
+                  : "c"
+                : "c";
+
               return {
                 ...row,
-                horse_no_b: first.no,
-                horse_name_b: first.name,
-                horse_no_c: second.no,
-                horse_name_c: second.name,
+                ...buildHarvilleSlotPatch(row, "b", firstSourceSuffix),
+                ...buildHarvilleSlotPatch(row, "c", secondSourceSuffix),
               };
             })
             .filter(Boolean);
 
           const displayColumns = partnerHorse
-            ? columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a" && columnName !== "horse_no_b" && columnName !== "horse_name_b")
-            : columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a");
+            ? removeHarvilleSlotColumns(columns, ["a", "b"])
+            : removeHarvilleSlotColumns(columns, ["a"]);
           return { displayRows: focusedRows, displayColumns };
         }
 
