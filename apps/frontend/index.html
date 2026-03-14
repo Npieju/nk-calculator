@@ -960,6 +960,13 @@
             <li>0倍（地方での未得票馬券など）は計算上 999999倍として扱います。</li>
             <li>差異率は、基準列（左端）に対する最大列の比率で計算します。</li>
           </ul>
+          <p class="muted" style="margin-top: 8px;"><strong>Harville比較</strong></p>
+          <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
+            <li>単勝から作る勝率は、`0.8 / 単勝オッズ` を全馬で正規化して使います。単勝の控除率を積の中で重ねないためです。</li>
+            <li>順序ありは `P(A→B→C) = p(A) × p(B)/(1-p(A)) × p(C)/(1-p(A)-p(B))`、順序なしはその順列和で計算します。</li>
+            <li>Harvilleオッズはフェア確率を出したあと、各券種の払戻率を最後に 1 回だけ掛け直します。現在は 馬連/ワイド 77.5%、馬単/三連複/三連単 75% を使っています。</li>
+            <li>ワイドは「2頭が3着内に入る確率」を三連複側の順列和で近似しています。同着や特殊払戻は考慮していません。</li>
+          </ul>
           <p class="muted" style="margin-top: 8px;"><strong>読み方</strong></p>
           <ul class="muted" style="margin: 6px 0 0 18px; padding: 0;">
             <li>同じ行で強調される買い目ほど、その前提で相対的に高いオッズが付いています。</li>
@@ -1150,6 +1157,15 @@
         { key: "trifecta", label: "三連単" },
       ];
       const HARVILLE_MARKET_LABELS = Object.fromEntries(HARVILLE_MARKET_OPTIONS.map((option) => [option.key, option.label]));
+      const HARVILLE_PAYOUT_RATES = {
+        win: 0.8,
+        place: 0.8,
+        quinella: 0.775,
+        wide: 0.775,
+        exacta: 0.75,
+        trio: 0.75,
+        trifecta: 0.75,
+      };
       const COLUMN_LABELS_JA = {
         horse: "馬A",
         horse_no: "馬番",
@@ -2235,7 +2251,7 @@
         for (const horse of horses || []) {
           const odd = toNumber(tanshoMap?.[horse]);
           if (odd === null || odd <= 0) continue;
-          const probability = 1 / odd;
+          const probability = HARVILLE_PAYOUT_RATES.win / odd;
           raw[horse] = probability;
           total += probability;
         }
@@ -2340,7 +2356,9 @@
           if (actualOdds === null || actualOdds <= 0) continue;
 
           const harvilleProbability = config.probability(combo, winProbabilityMap, horses);
-          const harvilleOdds = harvilleProbability !== null && harvilleProbability > 0 ? 1 / harvilleProbability : null;
+          const harvilleOdds = harvilleProbability !== null && harvilleProbability > 0 && config.payoutRate > 0
+            ? config.payoutRate / harvilleProbability
+            : null;
           const comboRow = buildHarvilleComboRow(combo, horseNameMap, tanshoMap);
           rows.push({
             ...comboRow,
@@ -2357,7 +2375,7 @@
         return {
           quinella: buildHarvilleMarketRows(
             umarenRows,
-            { comboSize: 2, ordered: false, probability: (combo, probabilityMap) => getHarvilleUnorderedProbability(probabilityMap, combo) },
+            { comboSize: 2, ordered: false, payoutRate: HARVILLE_PAYOUT_RATES.quinella, probability: (combo, probabilityMap) => getHarvilleUnorderedProbability(probabilityMap, combo) },
             horseNameMap,
             horses,
             excludedSet,
@@ -2366,7 +2384,7 @@
           ),
           exacta: buildHarvilleMarketRows(
             umatanRows,
-            { comboSize: 2, ordered: true, probability: (combo, probabilityMap) => getHarvilleOrderedProbability(probabilityMap, combo) },
+            { comboSize: 2, ordered: true, payoutRate: HARVILLE_PAYOUT_RATES.exacta, probability: (combo, probabilityMap) => getHarvilleOrderedProbability(probabilityMap, combo) },
             horseNameMap,
             horses,
             excludedSet,
@@ -2375,7 +2393,7 @@
           ),
           wide: buildHarvilleMarketRows(
             wideRows,
-            { comboSize: 2, ordered: false, probability: (combo, probabilityMap, allHorses) => getHarvilleWideProbability(probabilityMap, combo, allHorses) },
+            { comboSize: 2, ordered: false, payoutRate: HARVILLE_PAYOUT_RATES.wide, probability: (combo, probabilityMap, allHorses) => getHarvilleWideProbability(probabilityMap, combo, allHorses) },
             horseNameMap,
             horses,
             excludedSet,
@@ -2384,7 +2402,7 @@
           ),
           trio: buildHarvilleMarketRows(
             sanrenpukuRows,
-            { comboSize: 3, ordered: false, probability: (combo, probabilityMap) => getHarvilleUnorderedProbability(probabilityMap, combo) },
+            { comboSize: 3, ordered: false, payoutRate: HARVILLE_PAYOUT_RATES.trio, probability: (combo, probabilityMap) => getHarvilleUnorderedProbability(probabilityMap, combo) },
             horseNameMap,
             horses,
             excludedSet,
@@ -2393,7 +2411,7 @@
           ),
           trifecta: buildHarvilleMarketRows(
             sanrentanRows,
-            { comboSize: 3, ordered: true, probability: (combo, probabilityMap) => getHarvilleOrderedProbability(probabilityMap, combo) },
+            { comboSize: 3, ordered: true, payoutRate: HARVILLE_PAYOUT_RATES.trifecta, probability: (combo, probabilityMap) => getHarvilleOrderedProbability(probabilityMap, combo) },
             horseNameMap,
             horses,
             excludedSet,
