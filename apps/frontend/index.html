@@ -466,6 +466,12 @@
         font-weight: 700;
       }
 
+      .hl-negative-high {
+        background: linear-gradient(180deg, #f6dfdb 0%, #ebc7c1 100%);
+        color: #6e352c;
+        font-weight: 700;
+      }
+
       .hl-low { color: #83918c; }
 
       .hl-high-2nd {
@@ -3468,7 +3474,9 @@
             const tds = focusedDisplayColumns
               .map((c) => {
                 let cls = "";
-                if (c === highCol) cls = "hl-high";
+                if (c === highCol) {
+                  cls = state.key === "harville" && c === "harville_odds" ? "hl-negative-high" : "hl-high";
+                }
                 else if (c === lowCol && lowCol !== highCol) cls = "hl-low";
                 if (c === secondHighCol) cls = `${cls} hl-high-2nd`.trim();
                 else if (c === secondLowCol) cls = `${cls} hl-low-2nd`.trim();
