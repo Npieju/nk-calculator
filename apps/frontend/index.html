@@ -3203,20 +3203,30 @@
         return ["trio", "trifecta"].includes(String(marketKey || ""));
       }
 
-      function collectHarvilleHorseChoices(rows) {
+      function getHarvilleChoicePositionSuffixes(marketKey, slot) {
+        const normalizedMarketKey = String(marketKey || "");
+        const normalizedSlot = String(slot || "primary");
+        if (normalizedMarketKey === "exacta") {
+          return normalizedSlot === "primary" ? ["a"] : [];
+        }
+        if (normalizedMarketKey === "trifecta") {
+          if (normalizedSlot === "primary") return ["a"];
+          if (normalizedSlot === "secondary") return ["b"];
+        }
+        return ["a", "b", "c"];
+      }
+
+      function collectHarvilleHorseChoices(rows, positionSuffixes = ["a", "b", "c"]) {
+        const suffixes = Array.isArray(positionSuffixes) && positionSuffixes.length ? positionSuffixes : ["a", "b", "c"];
         const horseMap = new Map();
         for (const row of rows || []) {
-          const entries = [
-            [normalizeHorseNo(row?.horse_no_a), row?.horse_name_a],
-            [normalizeHorseNo(row?.horse_no_b), row?.horse_name_b],
-            [normalizeHorseNo(row?.horse_no_c), row?.horse_name_c],
-          ];
-          for (const [horseNo, horseName] of entries) {
-            const normalizedName = normalizeHorseName(horseName);
-            if (!horseNo || !normalizedName || horseMap.has(normalizedName)) continue;
-            horseMap.set(normalizedName, {
+          for (const suffix of suffixes) {
+            const horseNo = normalizeHorseNo(row?.[`horse_no_${suffix}`]);
+            const horseName = normalizeHorseName(row?.[`horse_name_${suffix}`]);
+            if (!horseNo || !horseName || horseMap.has(horseName)) continue;
+            horseMap.set(horseName, {
               horseNo,
-              label: formatHorseDisplay(horseNo, horseName),
+              label: formatHorseDisplay(horseNo, row?.[`horse_name_${suffix}`]),
             });
           }
         }
@@ -3229,27 +3239,170 @@
           });
       }
 
-      function buildHarvilleHorseFilterOptions(rows, selectedHorseName, excludedHorseName = "") {
+      function buildHarvilleHorseFilterOptions(rows, selectedHorseName, excludedHorseName = "", positionSuffixes = ["a", "b", "c"]) {
         const excluded = normalizeHorseName(excludedHorseName);
         const selected = normalizeHorseName(selectedHorseName) || "__all__";
-        const choices = collectHarvilleHorseChoices(rows)
+        const choices = collectHarvilleHorseChoices(rows, positionSuffixes)
           .filter((choice) => !excluded || choice.name !== excluded);
         return [`<option value="__all__" ${selected === "__all__" ? "selected" : ""}>全表示</option>`]
           .concat(choices.map((choice) => `<option value="${escapeHtml(choice.name)}" ${selected === choice.name ? "selected" : ""}>${escapeHtml(choice.label)}</option>`))
           .join("");
       }
 
-      function filterHarvilleRowsByHorse(rows, primaryHorseName, secondHorseName = "__all__") {
+      function getHarvilleFilteredRows(rows, marketKey, primaryHorseName, secondHorseName = "__all__") {
+        const normalizedMarketKey = String(marketKey || "");
         const primary = normalizeHorseName(primaryHorseName);
         const secondary = normalizeHorseName(secondHorseName);
+        const hasPrimary = primary && primary !== "__all__";
+        const hasSecondary = secondary && secondary !== "__all__";
+
         return (rows || []).filter((row) => {
-          const names = [row?.horse_name_a, row?.horse_name_b, row?.horse_name_c]
-            .map((value) => normalizeHorseName(value))
-            .filter(Boolean);
-          if (primary && primary !== "__all__" && !names.includes(primary)) return false;
-          if (secondary && secondary !== "__all__" && !names.includes(secondary)) return false;
+          const nameA = normalizeHorseName(row?.horse_name_a);
+          const nameB = normalizeHorseName(row?.horse_name_b);
+          const nameC = normalizeHorseName(row?.horse_name_c);
+          const names = [nameA, nameB, nameC].filter(Boolean);
+
+          if (normalizedMarketKey === "exacta") {
+            if (hasPrimary && nameA !== primary) return false;
+            return true;
+          }
+
+          if (normalizedMarketKey === "trifecta") {
+            if (hasPrimary && nameA !== primary) return false;
+            if (hasSecondary && nameB !== secondary) return false;
+            return true;
+          }
+
+          if (hasPrimary && !names.includes(primary)) return false;
+          if (hasSecondary && !names.includes(secondary)) return false;
           return true;
         });
+      }
+
+      function applyHarvilleFocusedDisplayIfNeeded(state, rows, columns) {
+        const marketKey = String(state.marketKey || "");
+        const selectedA = normalizeHorseName(state.horseFilter);
+        const selectedB = normalizeHorseName(state.secondHorseFilter);
+        const hasSelectedA = selectedA && selectedA !== "__all__";
+        const hasSelectedB = selectedB && selectedB !== "__all__";
+
+        if (!hasSelectedA && !hasSelectedB) {
+          return { displayRows: rows, displayColumns: columns };
+        }
+
+        if (marketKey === "exacta") {
+          const filteredRows = hasSelectedA
+            ? rows.filter((row) => normalizeHorseName(row?.horse_name_a) === selectedA)
+            : rows;
+          const displayColumns = hasSelectedA
+            ? columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a")
+            : columns;
+          return { displayRows: filteredRows, displayColumns };
+        }
+
+        if (marketKey === "trifecta") {
+          let filteredRows = [...rows];
+          if (hasSelectedA) {
+            filteredRows = filteredRows.filter((row) => normalizeHorseName(row?.horse_name_a) === selectedA);
+          }
+          if (hasSelectedB) {
+            filteredRows = filteredRows.filter((row) => normalizeHorseName(row?.horse_name_b) === selectedB);
+          }
+          let displayColumns = [...columns];
+          if (hasSelectedA) {
+            displayColumns = displayColumns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a");
+          }
+          if (hasSelectedB) {
+            displayColumns = displayColumns.filter((columnName) => columnName !== "horse_no_b" && columnName !== "horse_name_b");
+          }
+          return { displayRows: filteredRows, displayColumns };
+        }
+
+        if (["quinella", "wide"].includes(marketKey)) {
+          if (!hasSelectedA) {
+            return { displayRows: rows, displayColumns: columns };
+          }
+          const mappedRows = rows.map((row) => {
+            const nameA = normalizeHorseName(row?.horse_name_a);
+            const nameB = normalizeHorseName(row?.horse_name_b);
+            if (nameA === selectedA) {
+              return { ...row };
+            }
+            if (nameB === selectedA) {
+              return {
+                ...row,
+                horse_no_b: row?.horse_no_a,
+                horse_name_b: row?.horse_name_a,
+              };
+            }
+            return { ...row };
+          });
+          const displayColumns = columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a");
+          return { displayRows: mappedRows, displayColumns };
+        }
+
+        if (marketKey === "trio") {
+          const anchorHorse = hasSelectedA ? selectedA : hasSelectedB ? selectedB : "";
+          const partnerHorse = hasSelectedA && hasSelectedB ? selectedB : "";
+          if (!anchorHorse) {
+            return { displayRows: rows, displayColumns: columns };
+          }
+
+          const focusedRows = rows
+            .map((row) => {
+              const trio = [
+                { no: row?.horse_no_a, name: row?.horse_name_a, normalized: normalizeHorseName(row?.horse_name_a) },
+                { no: row?.horse_no_b, name: row?.horse_name_b, normalized: normalizeHorseName(row?.horse_name_b) },
+                { no: row?.horse_no_c, name: row?.horse_name_c, normalized: normalizeHorseName(row?.horse_name_c) },
+              ];
+
+              const hasAnchor = trio.some((item) => item.normalized === anchorHorse);
+              if (!hasAnchor) {
+                return null;
+              }
+
+              if (partnerHorse) {
+                const hasPartner = trio.some((item) => item.normalized === partnerHorse);
+                if (!hasPartner) {
+                  return null;
+                }
+
+                const third = trio.find((item) => item.normalized !== anchorHorse && item.normalized !== partnerHorse);
+                if (!third) {
+                  return null;
+                }
+
+                return {
+                  ...row,
+                  horse_no_c: third.no,
+                  horse_name_c: third.name,
+                };
+              }
+
+              const others = trio.filter((item) => item.normalized !== anchorHorse);
+              if (!others.length) {
+                return null;
+              }
+              const first = others[0];
+              const second = others[1] || { no: null, name: null };
+
+              return {
+                ...row,
+                horse_no_b: first.no,
+                horse_name_b: first.name,
+                horse_no_c: second.no,
+                horse_name_c: second.name,
+              };
+            })
+            .filter(Boolean);
+
+          const displayColumns = partnerHorse
+            ? columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a" && columnName !== "horse_no_b" && columnName !== "horse_name_b")
+            : columns.filter((columnName) => columnName !== "horse_no_a" && columnName !== "horse_name_a");
+          return { displayRows: focusedRows, displayColumns };
+        }
+
+        return { displayRows: rows, displayColumns: columns };
       }
 
       function buildHarvilleMarketTabsHtml(availableMarkets, marketKey) {
@@ -3499,6 +3652,10 @@
       }
 
       function applyFocusedHorseDisplayIfNeeded(state, rows, columns) {
+        if (state.key === "harville") {
+          return applyHarvilleFocusedDisplayIfNeeded(state, rows, columns);
+        }
+
         const selectedA = normalizeHorseName(selectedHorseFilter);
         const hasSelectedA = selectedA && selectedA !== "__all__";
         if (!hasSelectedA) {
@@ -3633,21 +3790,26 @@
           const marketKey = availableMarkets.some((option) => option.key === state.marketKey) ? state.marketKey : fallbackMarket;
           state.marketKey = marketKey;
           const marketRows = rowsByMarket[marketKey] || [];
-          const availableHorseNames = collectHarvilleHorseChoices(marketRows).map((choice) => choice.name);
+          const primaryPositionSuffixes = getHarvilleChoicePositionSuffixes(marketKey, "primary");
+          const secondaryPositionSuffixes = getHarvilleChoicePositionSuffixes(marketKey, "secondary");
+          const availableHorseNames = collectHarvilleHorseChoices(marketRows, primaryPositionSuffixes).map((choice) => choice.name);
           const horseFilter = normalizeHorseName(state.horseFilter) || "__all__";
           const normalizedHorseFilter = horseFilter !== "__all__" && availableHorseNames.includes(horseFilter) ? horseFilter : "__all__";
           const secondHorseFilter = normalizeHorseName(state.secondHorseFilter) || "__all__";
-          const validSecondHorseNames = availableHorseNames.filter((name) => name !== normalizedHorseFilter);
+          const secondFilterBaseRows = getHarvilleFilteredRows(marketRows, marketKey, normalizedHorseFilter, "__all__");
+          const validSecondHorseNames = collectHarvilleHorseChoices(secondFilterBaseRows, secondaryPositionSuffixes)
+            .map((choice) => choice.name)
+            .filter((name) => name !== normalizedHorseFilter);
           const normalizedSecondHorseFilter = isHarvilleTripleMarket(marketKey) && secondHorseFilter !== "__all__" && validSecondHorseNames.includes(secondHorseFilter)
             ? secondHorseFilter
             : "__all__";
           state.horseFilter = normalizedHorseFilter;
           state.secondHorseFilter = normalizedSecondHorseFilter;
-          rows = filterHarvilleRowsByHorse(marketRows, normalizedHorseFilter, normalizedSecondHorseFilter);
+          rows = getHarvilleFilteredRows(marketRows, marketKey, normalizedHorseFilter, normalizedSecondHorseFilter);
           title = `Harville比較: ${HARVILLE_MARKET_LABELS[marketKey] || marketKey} / 単勝基準`;
           preToolbarHtml = buildHarvilleMarketTabsHtml(availableMarkets, marketKey);
-          const horseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedHorseFilter);
-          const secondHorseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedSecondHorseFilter, normalizedHorseFilter);
+          const horseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedHorseFilter, "", primaryPositionSuffixes);
+          const secondHorseOptions = buildHarvilleHorseFilterOptions(secondFilterBaseRows, normalizedSecondHorseFilter, normalizedHorseFilter, secondaryPositionSuffixes);
           extraToolbarHtml = [
             buildToolbarFieldHtml("馬A", `<select onchange="window.changeHarvilleHorseFilter(this.value)">${horseOptions}</select>`),
             isHarvilleTripleMarket(marketKey)
@@ -3680,8 +3842,11 @@
         const focusedSortableColumns = getSortableColumns(focusedColumns);
         const focusedSortBy = focusedSortableColumns.includes(effectiveSortBy) ? effectiveSortBy : (focusedSortableColumns[0] || "");
         const horseDisplayColumns = focusedDisplayColumns.filter((c) => ["horse", "horse_a", "horse_b", "horse_c"].includes(c));
+        const hasFocusedHorseSelection = state.key === "harville"
+          ? [normalizeHorseName(state.horseFilter), normalizeHorseName(state.secondHorseFilter)].some((value) => value && value !== "__all__")
+          : selectedHorseFilter !== "__all__";
         const stickyHorseColumn =
-          state.key !== "all" && selectedHorseFilter !== "__all__" && horseDisplayColumns.length === 1 ? horseDisplayColumns[0] : null;
+          state.key !== "all" && hasFocusedHorseSelection && horseDisplayColumns.length === 1 ? horseDisplayColumns[0] : null;
         const sortedRows = getSortedRows(focusedRows, focusedSortBy, state.sortOrder);
         const rowClassName = rowClickable ? "clickable-row" : "";
         const buildRowInteractionAttrs = (rowIndex) => {
