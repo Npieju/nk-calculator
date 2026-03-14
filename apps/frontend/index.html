@@ -456,6 +456,37 @@
         color: var(--muted);
       }
 
+      .harville-selection-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 10px;
+      }
+
+      .harville-selection-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel-soft);
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--muted-strong);
+      }
+
+      .harville-selection-label {
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .harville-selection-value {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
       .muted { color: var(--muted); }
       .ok { color: #1f7a5a; }
       .warn { color: #9a6b00; }
@@ -3227,11 +3258,12 @@
             horseMap.set(horseName, {
               horseNo,
               label: formatHorseDisplay(horseNo, row?.[`horse_name_${suffix}`]),
+              winOdds: toNumber(row?.[`win_odds_${suffix}`]),
             });
           }
         }
         return [...horseMap.entries()]
-          .map(([name, info]) => ({ name, horseNo: info.horseNo, label: info.label }))
+          .map(([name, info]) => ({ name, horseNo: info.horseNo, label: info.label, winOdds: info.winOdds }))
           .sort((left, right) => {
             const byHorseNo = horsePairSort(left.horseNo, right.horseNo);
             if (byHorseNo !== 0) return byHorseNo;
@@ -3440,6 +3472,52 @@
           .map((option) => `<button class="selector-tab ${marketKey === option.key ? "is-active" : ""}" type="button" onclick="window.changeHarvilleMarket('${option.key}')">${escapeHtml(option.label)}</button>`)
           .join("");
         return `<div class="selector-tabs selector-subtabs">${tabsHtml}</div>`;
+      }
+
+      function getHarvilleSelectionSummaryLabel(slot) {
+        return slot === "secondary" ? "馬B" : "馬A";
+      }
+
+      function findHarvilleHorseChoice(rows, horseName, positionSuffixes = ["a", "b", "c"]) {
+        const selectedName = normalizeHorseName(horseName);
+        if (!selectedName || selectedName === "__all__") return null;
+        return collectHarvilleHorseChoices(rows, positionSuffixes)
+          .find((choice) => choice.name === selectedName) || null;
+      }
+
+      function formatHarvilleSelectionOddsText(value) {
+        const text = formatOddsText(value);
+        return text === "-" ? text : `${text}倍`;
+      }
+
+      function buildHarvilleSelectionSummaryHtml(rows, marketKey, primaryHorseName, secondHorseName = "__all__") {
+        const items = [];
+        const primaryChoice = findHarvilleHorseChoice(rows, primaryHorseName, getHarvilleChoicePositionSuffixes(marketKey, "primary"));
+        const secondChoice = findHarvilleHorseChoice(rows, secondHorseName, getHarvilleChoicePositionSuffixes(marketKey, "secondary"));
+
+        if (primaryChoice) {
+          items.push({
+            label: getHarvilleSelectionSummaryLabel("primary"),
+            horseLabel: primaryChoice.label,
+            winOdds: primaryChoice.winOdds,
+          });
+        }
+
+        if (secondChoice) {
+          items.push({
+            label: getHarvilleSelectionSummaryLabel("secondary"),
+            horseLabel: secondChoice.label,
+            winOdds: secondChoice.winOdds,
+          });
+        }
+
+        if (!items.length) return "";
+
+        return `<div class="harville-selection-summary">${items.map((item) => `
+          <div class="harville-selection-item">
+            <span class="harville-selection-label">${escapeHtml(item.label)}</span>
+            <span class="harville-selection-value">${escapeHtml(item.horseLabel)} / 単勝 ${escapeHtml(formatHarvilleSelectionOddsText(item.winOdds))}</span>
+          </div>`).join("")}</div>`;
       }
 
       function formatEdgePercent(value) {
@@ -3808,6 +3886,7 @@
         let title = state.title;
         let rows = state.rows;
         let preToolbarHtml = "";
+        let summaryHtml = "";
         let extraToolbarHtml = "";
         const extendedToggleControl = buildExtendedToggleControl(state.key);
         const collapseButton = buildCollapseButtonHtml(`window.toggleTableCollapse('${escapeHtml(state.key)}')`, state.collapsed);
@@ -3838,6 +3917,7 @@
           rows = getHarvilleFilteredRows(marketRows, marketKey, normalizedHorseFilter, normalizedSecondHorseFilter);
           title = `Harville比較: ${HARVILLE_MARKET_LABELS[marketKey] || marketKey} / 単勝基準`;
           preToolbarHtml = buildHarvilleMarketTabsHtml(availableMarkets, marketKey);
+          summaryHtml = buildHarvilleSelectionSummaryHtml(marketRows, marketKey, normalizedHorseFilter, normalizedSecondHorseFilter);
           const horseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedHorseFilter, "", primaryPositionSuffixes);
           const secondHorseOptions = buildHarvilleHorseFilterOptions(secondFilterBaseRows, normalizedSecondHorseFilter, normalizedHorseFilter, secondaryPositionSuffixes);
           extraToolbarHtml = [
@@ -3850,7 +3930,7 @@
 
         tableViewStates[state.key] = { rows: [], displayColumns: [], title };
         if (!Array.isArray(rows) || rows.length === 0) {
-          return `<div class="card table-card"><div class="card-head"><h3>${escapeHtml(title)}</h3><div class="card-actions">${extendedToggleControl}${collapseButton}</div></div>${state.collapsed ? "" : `${preToolbarHtml}${extraToolbarHtml ? `<div class="toolbar">${extraToolbarHtml}</div>` : ""}<p class="muted">データなし</p>`}</div>`;
+          return `<div class="card table-card"><div class="card-head"><h3>${escapeHtml(title)}</h3><div class="card-actions">${extendedToggleControl}${collapseButton}</div></div>${state.collapsed ? "" : `${preToolbarHtml}${summaryHtml}${extraToolbarHtml ? `<div class="toolbar">${extraToolbarHtml}</div>` : ""}<p class="muted">データなし</p>`}</div>`;
         }
 
         const baseColumns = Object.keys(rows[0]);
@@ -4028,6 +4108,7 @@
             </div>
             ${state.collapsed ? "" : `
             ${preToolbarHtml}
+              ${summaryHtml}
             <div class="toolbar">
               ${extraToolbarHtml}
               ${buildToolbarFieldHtml("ソート列", `<select onchange="window.changeSortColumn('${escapeHtml(state.key)}', this.value)">${options}</select>`)}
