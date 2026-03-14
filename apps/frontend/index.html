@@ -504,6 +504,62 @@
 
       .selector-subtabs { margin: 8px 0 12px; }
 
+      .detail-nav-card {
+        padding: 12px 14px;
+      }
+
+      .detail-nav-card .selector-tabs {
+        margin: 0;
+      }
+
+      .screener-note {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .screener-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel-soft);
+        color: var(--muted-strong);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      .screener-table {
+        width: max-content;
+        min-width: 100%;
+      }
+
+      .screener-table th,
+      .screener-table td {
+        white-space: nowrap;
+      }
+
+      .screener-edge {
+        color: #1f7a5a;
+        font-weight: 700;
+      }
+
+      .screener-link {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .screener-empty {
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
       .selector-sections { display: grid; gap: 12px; }
 
       .selector-section {
@@ -1074,11 +1130,24 @@
           ? "http://localhost:8000"
           : "https://nk-calculator-api.onrender.com";
       const tableOrder = ["all", "harville", "c1", "c2", "c3", "c4", "c5", "c6"];
+      const DETAIL_TAB_LABELS = {
+        all: "全体",
+        harville: "Harville",
+        c1: "単勝系",
+        c2: "複勝系",
+        c3: "馬連系",
+        c4: "馬単系",
+        c5: "ワイド系",
+        c6: "三連複系",
+      };
+      const SCREENER_ROW_LIMIT = 40;
       const tableStates = {};
       let statusCollapsed = true;
       let selectedHorseFilter = "__all__";
       let globalFilterNames = [];
       let showExtendedPatterns = false;
+      let activeDetailTab = "all";
+      let activeScreenerTab = "synthetic";
       let extendedStates = {};
       let lastAnalyzeData = null;
       const scrapedCacheByUrl = new Map();
@@ -3111,6 +3180,193 @@
         return `<button class="toolbar-toggle-button" type="button" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" onclick="window.toggleSortOrder('${escapeHtml(stateKey)}')"><span class="toolbar-toggle-symbol">${symbol}</span><span>${escapeHtml(shortLabel)}</span></button>`;
       }
 
+      function getDetailTabLabel(key) {
+        return DETAIL_TAB_LABELS[key] || String(key || "");
+      }
+
+      function getRowHorseNoList(row) {
+        return [
+          normalizeHorseNo(row?.horse_no),
+          normalizeHorseNo(row?.horse_no_a),
+          normalizeHorseNo(row?.horse_no_b),
+          normalizeHorseNo(row?.horse_no_c),
+        ].filter(Boolean);
+      }
+
+      function buildOutcomeCompactLabel(row) {
+        const horseNos = getRowHorseNoList(row);
+        if (!horseNos.length) return "-";
+        return horseNos.map((horseNo) => formatHorseNoOnly(horseNo)).join("-");
+      }
+
+      function formatEdgePercent(value) {
+        const n = toNumber(value);
+        if (n === null) return "-";
+        return `${n > 0 ? "+" : ""}${n.toFixed(1)}%`;
+      }
+
+      function buildSyntheticScreenerRows() {
+        const out = [];
+        for (const key of ["c1", "c2", "c3", "c4", "c5", "c6"]) {
+          const state = tableStates[key];
+          if (!state || !Array.isArray(state.rows) || !Array.isArray(state.highlightColumns)) continue;
+          const baseColumn = state.highlightColumns[0];
+          for (const row of state.rows) {
+            const numeric = state.highlightColumns
+              .map((columnName) => ({ columnName, value: toNumber(row?.[columnName]) }))
+              .filter((item) => item.value !== null);
+            const spread = toNumber(row?.spread);
+            if (numeric.length < 2 || spread === null || spread <= 100) continue;
+            const best = numeric.reduce((left, right) => (left.value >= right.value ? left : right));
+            const baseValue = toNumber(row?.[baseColumn]);
+            if (best.columnName === baseColumn || baseValue === null) continue;
+            out.push({
+              detailKey: key,
+              section: getDetailTabLabel(key),
+              target: buildOutcomeCompactLabel(row),
+              bestLabel: sanitizeLabelText(formatColumnLabel(best.columnName)),
+              bestValue: best.value,
+              baseLabel: sanitizeLabelText(formatColumnLabel(baseColumn)),
+              baseValue,
+              edge: spread - 100,
+              score: spread,
+            });
+          }
+        }
+        return out.sort((left, right) => {
+          if (right.score !== left.score) return right.score - left.score;
+          if (right.bestValue !== left.bestValue) return right.bestValue - left.bestValue;
+          return String(left.target || "").localeCompare(String(right.target || ""), "ja");
+        });
+      }
+
+      function buildHarvilleScreenerRows() {
+        const out = [];
+        const rowsByMarket = tableStates.harville?.rowsByMarket || {};
+        for (const option of HARVILLE_MARKET_OPTIONS) {
+          for (const row of rowsByMarket[option.key] || []) {
+            const marketOdds = toNumber(row?.market_odds);
+            const harvilleOdds = toNumber(row?.harville_odds);
+            const spread = toNumber(row?.spread);
+            if (marketOdds === null || harvilleOdds === null || spread === null || spread <= 100) continue;
+            out.push({
+              detailKey: "harville",
+              marketKey: option.key,
+              marketLabel: option.label,
+              target: buildOutcomeCompactLabel(row),
+              marketOdds,
+              harvilleOdds,
+              edge: spread - 100,
+              score: spread,
+            });
+          }
+        }
+        return out.sort((left, right) => {
+          if (right.score !== left.score) return right.score - left.score;
+          if (right.marketOdds !== left.marketOdds) return right.marketOdds - left.marketOdds;
+          return String(left.target || "").localeCompare(String(right.target || ""), "ja");
+        });
+      }
+
+      function buildScreenerCard() {
+        const syntheticRows = buildSyntheticScreenerRows();
+        const harvilleRows = buildHarvilleScreenerRows();
+        if (!["synthetic", "harville"].includes(activeScreenerTab)) {
+          activeScreenerTab = "synthetic";
+        }
+        const isHarville = activeScreenerTab === "harville";
+        const activeRows = (isHarville ? harvilleRows : syntheticRows).slice(0, SCREENER_ROW_LIMIT);
+        const tabsHtml = [
+          { key: "synthetic", label: `合成候補 (${syntheticRows.length})` },
+          { key: "harville", label: `Harville候補 (${harvilleRows.length})` },
+        ].map((tab) => `<button class="selector-tab ${activeScreenerTab === tab.key ? "is-active" : ""}" type="button" onclick="window.changeScreenerTab('${tab.key}')">${escapeHtml(tab.label)}</button>`).join("");
+        const note = isHarville
+          ? `実オッズが Harville 理論値を上回った行だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の Harville 詳細へ移動します。`
+          : `基準列より高い派生列だけを上位${SCREENER_ROW_LIMIT}件まで表示します。行クリックで下の系統別詳細へ移動します。`;
+
+        if (!activeRows.length) {
+          return `
+            <section class="card table-card" id="screenerCard">
+              <div class="card-head">
+                <div>
+                  <p class="section-eyebrow">候補抽出</p>
+                  <h3>買い候補一覧</h3>
+                </div>
+                <p class="card-note">まず上で候補を拾い、その後に下で内訳を確認します。</p>
+              </div>
+              <div class="selector-tabs">${tabsHtml}</div>
+              <p class="screener-empty">${escapeHtml(note)} 候補行はありません。</p>
+            </section>`;
+        }
+
+        const thead = isHarville
+          ? `<tr><th>券種</th><th>対象</th><th>実オッズ</th><th>Harville</th><th>上振れ</th><th>詳細</th></tr>`
+          : `<tr><th>系統</th><th>対象</th><th>優勢列</th><th>オッズ</th><th>基準列</th><th>基準値</th><th>上振れ</th><th>詳細</th></tr>`;
+        const tbody = activeRows.map((row) => {
+          if (isHarville) {
+            return `<tr class="clickable-row" onclick="window.openScreenerDetail('harville', '${escapeHtml(row.marketKey)}')">
+              <td><span class="screener-badge">${escapeHtml(row.marketLabel)}</span></td>
+              <td>${escapeHtml(row.target)}</td>
+              <td>${escapeHtml(formatCellValue("market_odds", row.marketOdds))}</td>
+              <td>${escapeHtml(formatCellValue("harville_odds", row.harvilleOdds))}</td>
+              <td class="screener-edge">${escapeHtml(formatEdgePercent(row.edge))}</td>
+              <td class="screener-link">詳細へ</td>
+            </tr>`;
+          }
+          return `<tr class="clickable-row" onclick="window.openScreenerDetail('${escapeHtml(row.detailKey)}')">
+            <td><span class="screener-badge">${escapeHtml(row.section)}</span></td>
+            <td>${escapeHtml(row.target)}</td>
+            <td>${escapeHtml(row.bestLabel)}</td>
+            <td>${escapeHtml(formatCellValue("odds", row.bestValue))}</td>
+            <td>${escapeHtml(row.baseLabel)}</td>
+            <td>${escapeHtml(formatCellValue("odds", row.baseValue))}</td>
+            <td class="screener-edge">${escapeHtml(formatEdgePercent(row.edge))}</td>
+            <td class="screener-link">詳細へ</td>
+          </tr>`;
+        }).join("");
+
+        return `
+          <section class="card table-card" id="screenerCard">
+            <div class="card-head">
+              <div>
+                <p class="section-eyebrow">候補抽出</p>
+                <h3>買い候補一覧</h3>
+              </div>
+              <p class="card-note">まず上で候補を拾い、その後に下で内訳を確認します。</p>
+            </div>
+            <div class="selector-tabs">${tabsHtml}</div>
+            <p class="screener-note">${escapeHtml(note)}</p>
+            <div class="scroll">
+              <table class="screener-table">
+                <thead>${thead}</thead>
+                <tbody>${tbody}</tbody>
+              </table>
+            </div>
+          </section>`;
+      }
+
+      function buildDetailTabsCard() {
+        const availableKeys = tableOrder.filter((key) => Object.hasOwn(tableStates, key));
+        if (!availableKeys.length) return "";
+        if (!availableKeys.includes(activeDetailTab)) {
+          activeDetailTab = availableKeys[0];
+        }
+        const tabsHtml = availableKeys
+          .map((key) => `<button class="selector-tab ${activeDetailTab === key ? "is-active" : ""}" type="button" onclick="window.changeDetailTab('${escapeHtml(key)}')">${escapeHtml(getDetailTabLabel(key))}</button>`)
+          .join("");
+        return `
+          <section class="card detail-nav-card" id="detailTabsCard">
+            <div class="card-head">
+              <div>
+                <p class="section-eyebrow">詳細比較</p>
+                <h3>比較表</h3>
+              </div>
+              <p class="card-note">候補一覧から見たい系統へ移り、列の内訳と配分まで確認します。</p>
+            </div>
+            <div class="selector-tabs">${tabsHtml}</div>
+          </section>`;
+      }
+
       function buildRowMergeKey(tableKey, row) {
         if (tableKey === "c1") {
           return String(row?.horse_no ?? "").trim();
@@ -3521,10 +3777,13 @@
           delete tableViewStates[key];
         }
         const htmlParts = [];
-        for (const key of tableOrder) {
-          const state = tableStates[key];
-          if (!state) continue;
-          htmlParts.push(buildTableCard(state));
+        if (Object.keys(tableStates).length) {
+          htmlParts.push(buildScreenerCard());
+          htmlParts.push(buildDetailTabsCard());
+          const activeState = tableStates[activeDetailTab] || tableStates[tableOrder[0]];
+          if (activeState) {
+            htmlParts.push(buildTableCard(activeState));
+          }
         }
         tablesBox.innerHTML = htmlParts.join("");
         syncAllSplitRowHeights();
@@ -3643,6 +3902,31 @@
         if (!tableStates[key]) return;
         tableStates[key].filterValue2 = value;
         renderTables();
+      };
+
+      window.changeScreenerTab = (key) => {
+        activeScreenerTab = key === "harville" ? "harville" : "synthetic";
+        renderTables();
+      };
+
+      window.changeDetailTab = (key) => {
+        if (!tableStates[key]) return;
+        activeDetailTab = key;
+        renderTables();
+      };
+
+      window.openScreenerDetail = (detailKey, marketKey = "") => {
+        if (detailKey === "harville" && tableStates.harville) {
+          const nextMarketKey = String(marketKey || "");
+          if (Object.hasOwn(tableStates.harville.rowsByMarket || {}, nextMarketKey)) {
+            tableStates.harville.marketKey = nextMarketKey;
+          }
+        }
+        if (tableStates[detailKey]) {
+          activeDetailTab = detailKey;
+        }
+        renderTables();
+        document.getElementById("detailTabsCard")?.scrollIntoView({ block: "start" });
       };
 
       window.changeHarvilleMarket = (value) => {
