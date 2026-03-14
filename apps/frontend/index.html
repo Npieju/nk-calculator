@@ -543,6 +543,31 @@
         margin: 0;
       }
 
+      .detail-tab-stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .detail-tab-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+      }
+
+      .detail-tab-label {
+        padding-top: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .detail-tab-row .selector-tabs {
+        margin: 0;
+      }
+
       .screener-note {
         margin: 0;
         font-size: 12px;
@@ -987,6 +1012,11 @@
           padding: 7px 4px;
           font-size: 12px;
         }
+        .detail-tab-row {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+        .detail-tab-label { padding-top: 0; }
         .toolbar, .allocation-toolbar {
           grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
           gap: 8px;
@@ -3467,13 +3497,6 @@
         return { displayRows: rows, displayColumns: columns };
       }
 
-      function buildHarvilleMarketTabsHtml(availableMarkets, marketKey) {
-        const tabsHtml = (availableMarkets || [])
-          .map((option) => `<button class="selector-tab ${marketKey === option.key ? "is-active" : ""}" type="button" onclick="window.changeHarvilleMarket('${option.key}')">${escapeHtml(option.label)}</button>`)
-          .join("");
-        return `<div class="selector-tabs selector-subtabs">${tabsHtml}</div>`;
-      }
-
       function getHarvilleSelectionSummaryLabel(slot) {
         return slot === "secondary" ? "馬B" : "馬A";
       }
@@ -3667,13 +3690,27 @@
       }
 
       function buildDetailTabsCard() {
-        const availableKeys = tableOrder.filter((key) => Object.hasOwn(tableStates, key));
-        if (!availableKeys.length) return "";
-        if (!availableKeys.includes(activeDetailTab)) {
-          activeDetailTab = availableKeys[0];
+        const harmonyKeys = tableOrder.filter((key) => key !== "harville" && Object.hasOwn(tableStates, key));
+        const harvilleRowsByMarket = tableStates.harville?.rowsByMarket || {};
+        const harvilleMarkets = HARVILLE_MARKET_OPTIONS.filter((option) => Array.isArray(harvilleRowsByMarket[option.key]) && harvilleRowsByMarket[option.key].length > 0);
+        if (!harmonyKeys.length && !harvilleMarkets.length) return "";
+
+        if (activeDetailTab !== "harville" && !harmonyKeys.includes(activeDetailTab)) {
+          activeDetailTab = harmonyKeys[0] || (harvilleMarkets.length ? "harville" : "all");
         }
-        const tabsHtml = availableKeys
+
+        const currentHarvilleMarket = harvilleMarkets.some((option) => option.key === tableStates.harville?.marketKey)
+          ? tableStates.harville?.marketKey
+          : harvilleMarkets[0]?.key;
+        if (tableStates.harville && currentHarvilleMarket) {
+          tableStates.harville.marketKey = currentHarvilleMarket;
+        }
+
+        const harmonyTabsHtml = harmonyKeys
           .map((key) => `<button class="selector-tab ${activeDetailTab === key ? "is-active" : ""}" type="button" onclick="window.changeDetailTab('${escapeHtml(key)}')">${escapeHtml(getDetailTabLabel(key))}</button>`)
+          .join("");
+        const harvilleTabsHtml = harvilleMarkets
+          .map((option) => `<button class="selector-tab ${activeDetailTab === "harville" && currentHarvilleMarket === option.key ? "is-active" : ""}" type="button" onclick="window.openHarvilleDetailMarket('${escapeHtml(option.key)}')">${escapeHtml(option.label)}</button>`)
           .join("");
         return `
           <section class="card detail-nav-card" id="detailTabsCard">
@@ -3684,7 +3721,10 @@
               </div>
               <p class="card-note">候補一覧から見たい系統へ移り、列の内訳と配分まで確認します。</p>
             </div>
-            <div class="selector-tabs">${tabsHtml}</div>
+            <div class="detail-tab-stack">
+              ${harmonyTabsHtml ? `<div class="detail-tab-row"><div class="detail-tab-label">harmony</div><div class="selector-tabs">${harmonyTabsHtml}</div></div>` : ""}
+              ${harvilleTabsHtml ? `<div class="detail-tab-row"><div class="detail-tab-label">harville</div><div class="selector-tabs">${harvilleTabsHtml}</div></div>` : ""}
+            </div>
           </section>`;
       }
 
@@ -3916,7 +3956,6 @@
           state.secondHorseFilter = normalizedSecondHorseFilter;
           rows = getHarvilleFilteredRows(marketRows, marketKey, normalizedHorseFilter, normalizedSecondHorseFilter);
           title = `Harville比較: ${HARVILLE_MARKET_LABELS[marketKey] || marketKey} / 単勝基準`;
-          preToolbarHtml = buildHarvilleMarketTabsHtml(availableMarkets, marketKey);
           summaryHtml = buildHarvilleSelectionSummaryHtml(marketRows, marketKey, normalizedHorseFilter, normalizedSecondHorseFilter);
           const horseOptions = buildHarvilleHorseFilterOptions(marketRows, normalizedHorseFilter, "", primaryPositionSuffixes);
           const secondHorseOptions = buildHarvilleHorseFilterOptions(secondFilterBaseRows, normalizedSecondHorseFilter, normalizedHorseFilter, secondaryPositionSuffixes);
@@ -4271,12 +4310,20 @@
         renderTables();
       };
 
+      window.openHarvilleDetailMarket = (marketKey) => {
+        if (!tableStates.harville) return;
+        const nextMarketKey = String(marketKey || "");
+        if (!Object.hasOwn(tableStates.harville.rowsByMarket || {}, nextMarketKey)) return;
+        tableStates.harville.marketKey = nextMarketKey;
+        activeDetailTab = "harville";
+        renderTables();
+      };
+
       window.openScreenerDetail = (detailKey, marketKey = "") => {
         if (detailKey === "harville" && tableStates.harville) {
-          const nextMarketKey = String(marketKey || "");
-          if (Object.hasOwn(tableStates.harville.rowsByMarket || {}, nextMarketKey)) {
-            tableStates.harville.marketKey = nextMarketKey;
-          }
+          window.openHarvilleDetailMarket(marketKey);
+          document.getElementById("detailTabsCard")?.scrollIntoView({ block: "start" });
+          return;
         }
         if (tableStates[detailKey]) {
           activeDetailTab = detailKey;
